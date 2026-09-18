@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/l10n.dart';
 import '../../models/source_info.dart';
+import '../../providers/bible_provider.dart';
 import '../../providers/note_provider.dart';
 import '../../providers/settings_provider.dart';
 
@@ -382,7 +383,28 @@ class _SettingsBody extends StatelessWidget {
         ],
       ),
     );
-    if (ok == true) settings.removeSource(src);
+    if (ok == true) {
+      settings.removeSource(src);
+      if (src.type == SourceType.bible && context.mounted) {
+        final bible = context.read<BibleProvider>();
+        final remaining = settings.enabledBibles;
+        // Remove deleted source from compare IDs
+        if (bible.selectedIds.contains(src.id)) {
+          final newIds =
+              bible.selectedIds.where((id) => id != src.id).toList();
+          bible.setSelectedIds(
+            newIds.isEmpty && remaining.isNotEmpty
+                ? [remaining.first.id]
+                : newIds,
+            remaining,
+          );
+        }
+        // Switch primary if the deleted source was active
+        if (bible.primaryId == src.id && remaining.isNotEmpty) {
+          bible.setSingleId(remaining.first.id, remaining);
+        }
+      }
+    }
   }
 }
 

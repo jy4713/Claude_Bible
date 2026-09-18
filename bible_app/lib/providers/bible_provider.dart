@@ -52,8 +52,13 @@ class BibleProvider with ChangeNotifier {
 
   List<Verse> versesFor(String id) => _verses[id] ?? [];
 
-  List<String> get visibleIds =>
-      _compareMode ? _compareIds : [_singleId];
+  /// In compare mode, always include singleId so Bible tab always has data.
+  List<String> get visibleIds {
+    if (_compareMode) {
+      return {..._compareIds, _singleId}.toList();
+    }
+    return [_singleId];
+  }
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -123,11 +128,7 @@ class BibleProvider with ChangeNotifier {
   void setSingleId(String id, List<SourceInfo> sources) {
     _singleId = id;
     _persist();
-    if (!_compareMode) {
-      _loadVerses(sources);
-    } else {
-      notifyListeners();
-    }
+    _loadVerses(sources); // Always load — visibleIds now includes singleId
   }
 
   /// Changes the compare-view translations (역본대조 tab).

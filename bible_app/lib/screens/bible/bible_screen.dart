@@ -187,7 +187,7 @@ class _BibleScreenState extends State<BibleScreen> {
         toolbarHeight: 62,
         titleSpacing: 4,
         title: Padding(
-          padding: const EdgeInsets.only(top: 4),
+          padding: const EdgeInsets.only(top: 8),
           child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -732,11 +732,12 @@ class _NavChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(6),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 0),
         child: Text(
           label,
           style: Theme.of(context).textTheme.titleSmall?.copyWith(
                 fontWeight: FontWeight.bold,
+                fontSize: (Theme.of(context).textTheme.titleSmall?.fontSize ?? 14) + 1,
               ),
         ),
       ),

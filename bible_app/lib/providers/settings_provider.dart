@@ -49,21 +49,36 @@ class SettingsProvider with ChangeNotifier {
 
     final biblesJson = prefs.getString(_kBibles);
     if (biblesJson != null && biblesJson.isNotEmpty) {
-      _bibles = SourceInfo.decodeList(biblesJson);
+      final saved = SourceInfo.decodeList(biblesJson);
+      final savedIds = {for (final s in saved) s.id};
+      _bibles = [
+        ...saved,
+        for (final b in kBuiltInBibles) if (!savedIds.contains(b.id)) b,
+      ];
     } else {
       _bibles = List<SourceInfo>.from(kBuiltInBibles);
     }
 
     final commJson = prefs.getString(_kCommentaries);
     if (commJson != null && commJson.isNotEmpty) {
-      _commentaries = SourceInfo.decodeList(commJson);
+      final saved = SourceInfo.decodeList(commJson);
+      final savedIds = {for (final s in saved) s.id};
+      _commentaries = [
+        ...saved,
+        for (final c in kBuiltInCommentaries) if (!savedIds.contains(c.id)) c,
+      ];
     } else {
       _commentaries = List<SourceInfo>.from(kBuiltInCommentaries);
     }
 
     final hymnsJson = prefs.getString(_kHymns);
     if (hymnsJson != null && hymnsJson.isNotEmpty) {
-      _hymns = SourceInfo.decodeList(hymnsJson);
+      final saved = SourceInfo.decodeList(hymnsJson);
+      final savedIds = {for (final s in saved) s.id};
+      _hymns = [
+        ...saved,
+        for (final h in kBuiltInHymns) if (!savedIds.contains(h.id)) h,
+      ];
     } else {
       _hymns = List<SourceInfo>.from(kBuiltInHymns);
     }
