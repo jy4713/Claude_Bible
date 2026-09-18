@@ -3,15 +3,18 @@ import 'package:provider/provider.dart';
 import '../../constants/book_names.dart';
 import '../../providers/settings_provider.dart';
 
-/// Dialog that lets the user pick: OT/NT → Book → Chapter.
+/// Dialog that lets the user pick: OT/NT → Book → Chapter → Verse.
+/// Returns {'book': int, 'chapter': int, 'verse': int}.
 class BookSelectorDialog extends StatefulWidget {
   final int currentBook;
   final int currentChapter;
+  final int currentVerse;
 
   const BookSelectorDialog({
     super.key,
     required this.currentBook,
     required this.currentChapter,
+    this.currentVerse = 1,
   });
 
   @override
@@ -50,7 +53,8 @@ class _BookSelectorDialogState extends State<BookSelectorDialog>
           selected: selected,
           leading: Text('${b.number}'),
           title: Text(b.korean),
-          trailing: Text(b.english, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+          trailing: Text(b.english,
+              style: const TextStyle(fontSize: 12, color: Colors.grey)),
           onTap: () => _showChapters(b),
         );
       },
@@ -58,12 +62,20 @@ class _BookSelectorDialogState extends State<BookSelectorDialog>
   }
 
   Future<void> _showChapters(BookInfo book) async {
-    final chapter = await showDialog<int>(
+    final result = await showDialog<Map<String, int>>(
       context: context,
-      builder: (_) => _ChapterDialog(book: book, currentChapter: widget.currentChapter),
+      builder: (_) => _ChapterDialog(
+        book: book,
+        currentChapter: widget.currentChapter,
+        currentVerse: widget.currentVerse,
+      ),
     );
-    if (chapter != null && mounted) {
-      Navigator.pop(context, {'book': book.number, 'chapter': chapter});
+    if (result != null && mounted) {
+      Navigator.pop(context, {
+        'book': book.number,
+        'chapter': result['chapter']!,
+        'verse': result['verse'] ?? 1,
+      });
     }
   }
 
@@ -93,11 +105,18 @@ class _BookSelectorDialogState extends State<BookSelectorDialog>
   }
 }
 
+// ── Chapter dialog ───────────────────────────────────────────────────────────
+
 class _ChapterDialog extends StatelessWidget {
   final BookInfo book;
   final int currentChapter;
+  final int currentVerse;
 
-  const _ChapterDialog({required this.book, required this.currentChapter});
+  const _ChapterDialog({
+    required this.book,
+    required this.currentChapter,
+    required this.currentVerse,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -111,7 +130,8 @@ class _ChapterDialog extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.all(16),
               child: Text(book.korean,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  style: const TextStyle(
+                      fontWeight: FontWeight.bold, fontSize: 16)),
             ),
             const Divider(height: 0),
             Flexible(
@@ -120,7 +140,8 @@ class _ChapterDialog extends StatelessWidget {
                   shrinkWrap: true,
                   physics: const NeverScrollableScrollPhysics(),
                   padding: const EdgeInsets.all(12),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 6,
                     mainAxisSpacing: 8,
                     crossAxisSpacing: 8,
@@ -131,14 +152,29 @@ class _ChapterDialog extends StatelessWidget {
                     final ch = i + 1;
                     final selected = ch == currentChapter;
                     return InkWell(
-                      onTap: () => Navigator.pop(context, ch),
+                      onTap: () async {
+                        final result = await showDialog<Map<String, int>>(
+                          context: context,
+                          builder: (_) => _VerseDialog(
+                            book: book,
+                            chapter: ch,
+                            currentVerse:
+                                ch == currentChapter ? currentVerse : 1,
+                          ),
+                        );
+                        if (result != null && context.mounted) {
+                          Navigator.pop(context, result);
+                        }
+                      },
                       borderRadius: BorderRadius.circular(6),
                       child: Container(
                         alignment: Alignment.center,
                         decoration: BoxDecoration(
                           color: selected
                               ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context).colorScheme.surfaceContainerHighest,
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: Text(
@@ -147,7 +183,111 @@ class _ChapterDialog extends StatelessWidget {
                             color: selected
                                 ? Theme.of(context).colorScheme.onPrimary
                                 : null,
-                            fontWeight: selected ? FontWeight.bold : null,
+                            fontWeight:
+                                selected ? FontWeight.bold : null,
+                          ),
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ── Verse dialog ─────────────────────────────────────────────────────────────
+
+class _VerseDialog extends StatelessWidget {
+  final BookInfo book;
+  final int chapter;
+  final int currentVerse;
+
+  const _VerseDialog({
+    required this.book,
+    required this.chapter,
+    required this.currentVerse,
+  });
+
+  static const int _maxVerses = 176; // Psalm 119 has most (176 verses)
+
+  @override
+  Widget build(BuildContext context) {
+    final maxH = MediaQuery.of(context).size.height * 0.65;
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                children: [
+                  Text(
+                    '${book.korean} $chapter장',
+                    style: const TextStyle(
+                        fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text('절을 선택하세요',
+                      style: TextStyle(fontSize: 12, color: Colors.grey)),
+                ],
+              ),
+            ),
+            const Divider(height: 0),
+            // "처음 절로" quick button
+            ListTile(
+              leading: const Icon(Icons.first_page),
+              title: const Text('장 처음으로 이동'),
+              dense: true,
+              onTap: () => Navigator.pop(context, {'chapter': chapter, 'verse': 1}),
+            ),
+            const Divider(height: 0),
+            Flexible(
+              child: SingleChildScrollView(
+                child: GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  padding: const EdgeInsets.all(12),
+                  gridDelegate:
+                      const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 8,
+                    mainAxisSpacing: 6,
+                    crossAxisSpacing: 6,
+                    childAspectRatio: 1.1,
+                  ),
+                  itemCount: _maxVerses,
+                  itemBuilder: (_, i) {
+                    final v = i + 1;
+                    final selected = v == currentVerse;
+                    return InkWell(
+                      onTap: () => Navigator.pop(
+                          context, {'chapter': chapter, 'verse': v}),
+                      borderRadius: BorderRadius.circular(4),
+                      child: Container(
+                        alignment: Alignment.center,
+                        decoration: BoxDecoration(
+                          color: selected
+                              ? Theme.of(context).colorScheme.primary
+                              : Theme.of(context)
+                                  .colorScheme
+                                  .surfaceContainerHighest,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '$v',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: selected
+                                ? Theme.of(context).colorScheme.onPrimary
+                                : null,
+                            fontWeight:
+                                selected ? FontWeight.bold : null,
                           ),
                         ),
                       ),

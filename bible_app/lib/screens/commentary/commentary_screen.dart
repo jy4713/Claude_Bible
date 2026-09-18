@@ -22,41 +22,77 @@ class CommentaryScreenState extends State<CommentaryScreen> {
   bool _loading = false;
   bool _initialized = false;
 
-  // Commentary browses independently of the Bible once opened.
-  int _book = 1;
+  int _book    = 1;
   int _chapter = 1;
+  int _verse   = 1;
+
+  // Keys per verse-entry for scrolling
+  final Map<int, GlobalKey> _entryKeys = {};
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     if (!_initialized) {
       _initialized = true;
-      // Start at the Bible's current location.
       final bible = Provider.of<BibleProvider>(context, listen: false);
-      _book = bible.book;
+      _book    = bible.book;
       _chapter = bible.chapter;
+      _verse   = bible.verse;
       WidgetsBinding.instance.addPostFrameCallback((_) => _reload());
     }
   }
 
   /// Called when the Commentary tab is (re)selected: jump to the Bible's
-  /// current position. Afterwards the user may browse freely.
+  /// current position including verse.
   void syncToBible() {
     final bible = Provider.of<BibleProvider>(context, listen: false);
-    if (_book == bible.book && _chapter == bible.chapter && _entries.isNotEmpty) {
+    final sameLocation = _book == bible.book &&
+        _chapter == bible.chapter &&
+        _verse == bible.verse &&
+        _entries.isNotEmpty;
+    if (sameLocation) {
+      _scrollToVerse(_verse);
       return;
     }
     setState(() {
-      _book = bible.book;
+      _book    = bible.book;
       _chapter = bible.chapter;
+      _verse   = bible.verse;
     });
-    _reload();
+    _reload().then((_) {
+      WidgetsBinding.instance.addPostFrameCallback(
+          (_) => _scrollToVerse(_verse));
+    });
   }
 
-  void _navigate(int book, int chapter) {
+  void _scrollToVerse(int verse) {
+    if (_entries.isEmpty) return;
+    // Find the entry with verse <= target, closest to target
+    int target = verse;
+    // Find smallest verse >= target in entries, or largest <= target
+    CommentaryEntry? best;
+    for (final e in _entries) {
+      if (e.verse <= target) best = e;
+      if (e.verse >= target) { best = e; break; }
+    }
+    if (best == null && _entries.isNotEmpty) best = _entries.first;
+    if (best == null) return;
+
+    final key = _entryKeys[best.verse];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
+  void _navigate(int book, int chapter, {int verse = 1}) {
     setState(() {
-      _book = book;
+      _book    = book;
       _chapter = chapter;
+      _verse   = verse;
     });
     _reload();
   }
@@ -85,10 +121,15 @@ class CommentaryScreenState extends State<CommentaryScreen> {
       builder: (_) => BookSelectorDialog(
         currentBook: _book,
         currentChapter: _chapter,
+        currentVerse: _verse,
       ),
     );
     if (result != null && mounted) {
-      _navigate(result['book']!, result['chapter']!);
+      _navigate(
+        result['book']!,
+        result['chapter']!,
+        verse: result['verse'] ?? 1,
+      );
     }
   }
 
@@ -104,10 +145,11 @@ class CommentaryScreenState extends State<CommentaryScreen> {
       src = sources.first;
       _source = src;
     }
+    _entryKeys.clear();
     setState(() => _loading = true);
     try {
-      final entries =
-          await CommentaryRepository.instance.getChapter(src, _book, _chapter);
+      final entries = await CommentaryRepository.instance
+          .getChapter(src, _book, _chapter);
       if (mounted) setState(() => _entries = entries);
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -126,7 +168,7 @@ class CommentaryScreenState extends State<CommentaryScreen> {
     final fontSize = settings.fontSize;
     final t        = settings.t;
 
-    final bookInfo = bookInfoOf(_book);
+    final bookInfo     = bookInfoOf(_book);
     final chapterLabel = '${bookInfo.korean} ${t.chapter(_chapter)}';
 
     if (sources.isEmpty) {
@@ -147,7 +189,8 @@ class CommentaryScreenState extends State<CommentaryScreen> {
               child: TextButton(
                 onPressed: _selectBook,
                 style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8)),
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 8)),
                 child: Text(
                   t.commentaryTitle(chapterLabel),
                   overflow: TextOverflow.ellipsis,
@@ -181,7 +224,8 @@ class CommentaryScreenState extends State<CommentaryScreen> {
               initialValue: _source,
               onSelected: _switchSource,
               itemBuilder: (_) => sources
-                  .map((s) => PopupMenuItem(value: s, child: Text(s.name)))
+                  .map((s) =>
+                      PopupMenuItem(value: s, child: Text(s.name)))
                   .toList(),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
@@ -202,8 +246,9 @@ class CommentaryScreenState extends State<CommentaryScreen> {
               ? Center(
                   child: Text(
                     t.noCommentary,
-                    style:
-                        TextStyle(color: Theme.of(context).colorScheme.outline),
+                    style: TextStyle(
+                        color:
+                            Theme.of(context).colorScheme.outline),
                   ),
                 )
               : ListView.separated(
@@ -212,19 +257,25 @@ class CommentaryScreenState extends State<CommentaryScreen> {
                   separatorBuilder: (_, __) => const Divider(),
                   itemBuilder: (_, i) {
                     final e = _entries[i];
+                    final key = _entryKeys.putIfAbsent(
+                        e.verse, () => GlobalKey());
                     return Column(
+                      key: key,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           '${e.verse}${settings.t.isEn ? '' : '절'}',
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: Theme.of(context).colorScheme.primary,
+                            color: Theme.of(context)
+                                .colorScheme
+                                .primary,
                             fontSize: fontSize * 0.9,
                           ),
                         ),
                         const SizedBox(height: 4),
-                        HtmlContent(html: e.html, fontSize: fontSize * 0.9),
+                        HtmlContent(
+                            html: e.html, fontSize: fontSize * 0.9),
                       ],
                     );
                   },

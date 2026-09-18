@@ -6,31 +6,31 @@ import '../models/verse.dart';
 import '../repositories/bible_repository.dart';
 
 class BibleProvider with ChangeNotifier {
-  static const _kBook    = 'currentBook';
-  static const _kChapter = 'currentChapter';
-  static const _kSelected = 'selectedIds';
-  static const _kCompare  = 'compareMode';
+  static const _kBook       = 'currentBook';
+  static const _kChapter    = 'currentChapter';
+  static const _kVerse      = 'currentVerse';
+  static const _kSelected   = 'selectedIds';
+  static const _kCompare    = 'compareMode';
 
   /// Maximum number of translations that can be compared at once.
   static const int maxCompare = 4;
 
-  int _book    = 1;
-  int _chapter = 1;
-  int _verseIndex = 0; // for scroll-to
+  int _book       = 1;
+  int _chapter    = 1;
+  int _verse      = 1; // 1-based current verse
+  int _verseIndex = 0; // 0-based index for scroll-to
 
-  // Selected translation IDs for primary + compare (priority order 1..4)
   List<String> _selectedIds = ['개역개정'];
-
   bool _compareMode = false;
-  Axis _compareAxis = Axis.horizontal; // horizontal = side-by-side
+  Axis _compareAxis = Axis.horizontal;
 
-  // verses[translationId] = list of Verse
   final Map<String, List<Verse>> _verses = {};
   bool _loading = false;
   String? _error;
 
-  int get book    => _book;
-  int get chapter => _chapter;
+  int get book       => _book;
+  int get chapter    => _chapter;
+  int get verse      => _verse;
   int get verseIndex => _verseIndex;
 
   List<String> get selectedIds => _selectedIds;
@@ -41,10 +41,9 @@ class BibleProvider with ChangeNotifier {
 
   List<Verse> versesFor(String id) => _verses[id] ?? [];
 
-  /// The single active translation id when compare is off (priority #1).
-  String get primaryId => _selectedIds.isNotEmpty ? _selectedIds.first : '개역개정';
+  String get primaryId =>
+      _selectedIds.isNotEmpty ? _selectedIds.first : '개역개정';
 
-  /// Ids that are actually shown in the current view.
   List<String> get visibleIds =>
       _compareMode ? _selectedIds : [primaryId];
 
@@ -52,6 +51,8 @@ class BibleProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _book    = prefs.getInt(_kBook)    ?? 1;
     _chapter = prefs.getInt(_kChapter) ?? 1;
+    _verse   = prefs.getInt(_kVerse)   ?? 1;
+    _verseIndex = _verse - 1;
     _compareMode = prefs.getBool(_kCompare) ?? false;
     final saved = prefs.getStringList(_kSelected);
     if (saved != null && saved.isNotEmpty) _selectedIds = saved;
@@ -73,13 +74,15 @@ class BibleProvider with ChangeNotifier {
     int chapter, {
     int verseIndex = 0,
   }) async {
-    _book    = book;
-    _chapter = chapter;
+    _book       = book;
+    _chapter    = chapter;
     _verseIndex = verseIndex;
+    _verse      = verseIndex + 1;
     await _loadVerses(sources);
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_kBook, book);
+    await prefs.setInt(_kBook,    book);
     await prefs.setInt(_kChapter, chapter);
+    await prefs.setInt(_kVerse,   _verse);
   }
 
   Future<void> reload(List<SourceInfo> sources) => _loadVerses(sources);
@@ -129,7 +132,7 @@ class BibleProvider with ChangeNotifier {
       _selectedIds = [_selectedIds.first];
     }
     _persistSelection();
-    _loadVerses(sources); // reloads + notifies for the new view
+    _loadVerses(sources);
   }
 
   void setCompareAxis(Axis axis) {
@@ -137,8 +140,5 @@ class BibleProvider with ChangeNotifier {
     notifyListeners();
   }
 
-  Future<int> chapterCount(SourceInfo source) async {
-    // Use book info constants for speed (avoids DB query)
-    return 0; // caller uses BookInfo.chapters instead
-  }
+  Future<int> chapterCount(SourceInfo source) async => 0;
 }

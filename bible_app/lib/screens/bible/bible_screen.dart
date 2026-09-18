@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
 import '../../constants/book_names.dart';
+import '../../models/note.dart';
 import '../../models/source_info.dart';
 import '../../models/verse.dart';
 import '../../providers/bible_provider.dart';
+import '../../providers/note_provider.dart';
 import '../../providers/settings_provider.dart';
 import 'bible_search_screen.dart';
 import '_book_selector_dialog.dart';
@@ -29,10 +31,12 @@ class _BibleScreenState extends State<BibleScreen> {
   void _initLoad() {
     final settings = context.read<SettingsProvider>();
     final bible   = context.read<BibleProvider>();
+    final notes   = context.read<NoteProvider>();
     final sources = settings.enabledBibles;
     if (sources.isNotEmpty) {
       bible.reload(sources);
     }
+    notes.loadForChapter(bible.book, bible.chapter);
   }
 
   @override
@@ -44,41 +48,82 @@ class _BibleScreenState extends State<BibleScreen> {
   // ── Navigation helpers ───────────────────────────────────────────────────
 
   void _prevChapter(BibleProvider bible, List<SourceInfo> sources) {
-    if (bible.chapter > 1) {
-      bible.navigate(sources, bible.book, bible.chapter - 1);
-    } else if (bible.book > 1) {
-      final info = bookInfoOf(bible.book - 1);
-      bible.navigate(sources, info.number, info.chapters);
+    final notes = context.read<NoteProvider>();
+    int book = bible.book, chapter = bible.chapter;
+    if (chapter > 1) {
+      chapter--;
+    } else if (book > 1) {
+      book--;
+      chapter = bookInfoOf(book).chapters;
     }
+    bible.navigate(sources, book, chapter);
+    notes.loadForChapter(book, chapter);
   }
 
   void _nextChapter(BibleProvider bible, List<SourceInfo> sources) {
-    final info = bookInfoOf(bible.book);
-    if (bible.chapter < info.chapters) {
-      bible.navigate(sources, bible.book, bible.chapter + 1);
-    } else if (bible.book < 66) {
-      bible.navigate(sources, bible.book + 1, 1);
+    final notes  = context.read<NoteProvider>();
+    final info   = bookInfoOf(bible.book);
+    int book = bible.book, chapter = bible.chapter;
+    if (chapter < info.chapters) {
+      chapter++;
+    } else if (book < 66) {
+      book++;
+      chapter = 1;
     }
+    bible.navigate(sources, book, chapter);
+    notes.loadForChapter(book, chapter);
   }
 
-  Future<void> _selectBook(BibleProvider bible, List<SourceInfo> sources) async {
+  Future<void> _selectBook(
+      BibleProvider bible, List<SourceInfo> sources) async {
+    final notes = context.read<NoteProvider>();
     final result = await showDialog<Map<String, int>>(
       context: context,
       builder: (_) => BookSelectorDialog(
         currentBook: bible.book,
         currentChapter: bible.chapter,
+        currentVerse: bible.verse,
       ),
     );
     if (result != null && mounted) {
-      bible.navigate(sources, result['book']!, result['chapter']!);
+      final v = result['verse'] ?? 1;
+      await bible.navigate(sources, result['book']!, result['chapter']!,
+          verseIndex: v - 1);
+      notes.loadForChapter(result['book']!, result['chapter']!);
     }
   }
 
-  Future<void> _selectTranslations(List<SourceInfo> sources) async {
+  // Single translation selector (no compare)
+  Future<void> _selectTranslation(List<SourceInfo> sources) async {
+    final bible = context.read<BibleProvider>();
+    // Temporarily ensure compare mode is off
+    if (bible.compareMode) {
+      bible.toggleCompare(sources);
+    }
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
-      builder: (_) => TranslationSelector(allSources: sources),
+      builder: (_) => TranslationSelector(
+        allSources: sources,
+        compareMode: false,
+      ),
+    );
+  }
+
+  // Compare translation selector
+  Future<void> _openCompare(List<SourceInfo> sources) async {
+    final bible = context.read<BibleProvider>();
+    // Ensure compare mode is on
+    if (!bible.compareMode) {
+      bible.toggleCompare(sources);
+    }
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => TranslationSelector(
+        allSources: sources,
+        compareMode: true,
+      ),
     );
   }
 
@@ -95,13 +140,13 @@ class _BibleScreenState extends State<BibleScreen> {
   Widget build(BuildContext context) {
     final settings = context.watch<SettingsProvider>();
     final bible    = context.watch<BibleProvider>();
+    final notes    = context.watch<NoteProvider>();
     final sources  = settings.enabledBibles;
     final t        = settings.t;
 
     final bookInfo = bookInfoOf(bible.book);
     final fontSize = settings.fontSize;
 
-    // Auto-recover: if primary translation was deleted, switch to first available.
     if (sources.isNotEmpty &&
         !sources.any((s) => s.id == bible.primaryId)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -111,16 +156,16 @@ class _BibleScreenState extends State<BibleScreen> {
 
     final showCompare = bible.compareMode && bible.selectedIds.length > 1;
 
-    // Title text: in single mode show which translation is active.
     final primarySrc = _srcById(sources, bible.primaryId);
     final english = !showCompare && (primarySrc?.isEnglish ?? false);
     final bookLabel = english
         ? '${bookInfo.korean} / ${bookInfo.english}'
         : bookInfo.korean;
-    final prefix = (!showCompare && primarySrc != null)
-        ? '${primarySrc.name}  '
+    final verseLabel = !showCompare && bible.verse > 1
+        ? ':${bible.verse}'
         : '';
-    final titleText = '$prefix$bookLabel ${t.chapter(bible.chapter)}';
+    final titleText =
+        '$bookLabel ${t.chapter(bible.chapter)}$verseLabel';
 
     return Scaffold(
       appBar: AppBar(
@@ -156,11 +201,19 @@ class _BibleScreenState extends State<BibleScreen> {
           ],
         ),
         actions: [
+          // Single translation button
           IconButton(
             icon: const Icon(Icons.menu_book),
-            tooltip: t.translationCompareSettings,
-            onPressed: () => _selectTranslations(sources),
+            tooltip: t.translationSettings,
+            onPressed: () => _selectTranslation(sources),
           ),
+          // Compare translations button
+          IconButton(
+            icon: const Icon(Icons.compare_arrows),
+            tooltip: t.compareSettings,
+            onPressed: () => _openCompare(sources),
+          ),
+          // Search
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: t.searchBible,
@@ -173,8 +226,10 @@ class _BibleScreenState extends State<BibleScreen> {
                   fontSize: fontSize,
                   onNavigate: (book, chapter, verse) {
                     Navigator.pop(context);
+                    final np = context.read<NoteProvider>();
                     bible.navigate(sources, book, chapter,
                         verseIndex: verse - 1);
+                    np.loadForChapter(book, chapter);
                   },
                 ),
               ),
@@ -194,10 +249,16 @@ class _BibleScreenState extends State<BibleScreen> {
                     )
                   : _SingleView(
                       bible: bible,
+                      notes: notes,
                       sourceId: bible.primaryId,
                       fontSize: fontSize,
                       scrollController: _scrollController,
                       emptyText: t.noData,
+                      onChapterChanged: (book, chapter) {
+                        context
+                            .read<NoteProvider>()
+                            .loadForChapter(book, chapter);
+                      },
                     ),
     );
   }
@@ -205,32 +266,287 @@ class _BibleScreenState extends State<BibleScreen> {
 
 // ── Single translation view ──────────────────────────────────────────────────
 
-class _SingleView extends StatelessWidget {
+class _SingleView extends StatefulWidget {
   final BibleProvider bible;
+  final NoteProvider notes;
   final String sourceId;
   final double fontSize;
   final ScrollController scrollController;
   final String emptyText;
+  final void Function(int book, int chapter) onChapterChanged;
 
   const _SingleView({
     required this.bible,
+    required this.notes,
     required this.sourceId,
     required this.fontSize,
     required this.scrollController,
     required this.emptyText,
+    required this.onChapterChanged,
   });
 
   @override
-  Widget build(BuildContext context) {
-    final verses = bible.versesFor(sourceId);
-    if (verses.isEmpty) {
-      return Center(child: Text(emptyText));
+  State<_SingleView> createState() => _SingleViewState();
+}
+
+class _SingleViewState extends State<_SingleView> {
+  final Map<int, GlobalKey> _verseKeys = {};
+  Set<int> _selectedVerses = {};
+  bool _selectionMode = false;
+  int? _lastBook;
+  int? _lastChapter;
+
+  @override
+  void initState() {
+    super.initState();
+    _lastBook    = widget.bible.book;
+    _lastChapter = widget.bible.chapter;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+  }
+
+  @override
+  void didUpdateWidget(covariant _SingleView old) {
+    super.didUpdateWidget(old);
+    if (widget.bible.book != _lastBook ||
+        widget.bible.chapter != _lastChapter) {
+      _lastBook    = widget.bible.book;
+      _lastChapter = widget.bible.chapter;
+      _verseKeys.clear();
+      setState(() {
+        _selectedVerses = {};
+        _selectionMode = false;
+      });
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
     }
-    return ListView.builder(
-      controller: scrollController,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      itemCount: verses.length,
-      itemBuilder: (_, i) => _VerseItem(verse: verses[i], fontSize: fontSize),
+  }
+
+  void _scrollToVerse() {
+    final idx = widget.bible.verseIndex;
+    if (idx <= 0) return;
+    final verses = widget.bible.versesFor(widget.sourceId);
+    if (idx >= verses.length) return;
+    final vNum = verses[idx].verse;
+    final key  = _verseKeys[vNum];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
+  }
+
+  void _onVerseTap(Verse verse) {
+    if (_selectionMode) {
+      setState(() {
+        if (_selectedVerses.contains(verse.verse)) {
+          _selectedVerses.remove(verse.verse);
+          if (_selectedVerses.isEmpty) _selectionMode = false;
+        } else {
+          _selectedVerses.add(verse.verse);
+        }
+      });
+      return;
+    }
+    final note = widget.notes.getNote(verse.verse);
+    if (note != null) {
+      _showNoteViewDialog(note);
+    }
+  }
+
+  void _onVerseLongPress(Verse verse) {
+    setState(() {
+      _selectionMode = true;
+      _selectedVerses = {verse.verse};
+    });
+  }
+
+  void _cancelSelection() {
+    setState(() {
+      _selectionMode = false;
+      _selectedVerses = {};
+    });
+  }
+
+  Future<void> _showAddNoteDialog() async {
+    if (_selectedVerses.isEmpty) return;
+    final sorted = _selectedVerses.toList()..sort();
+    final from = sorted.first;
+    final to   = sorted.last;
+    final bible = widget.bible;
+    final existing = widget.notes.getNote(from);
+
+    await _openNoteEditor(
+      context: context,
+      book: bible.book,
+      chapter: bible.chapter,
+      verseFrom: from,
+      verseTo: to,
+      existingNote: existing,
+    );
+    setState(() {
+      _selectionMode = false;
+      _selectedVerses = {};
+    });
+  }
+
+  void _showNoteViewDialog(Note note) {
+    showDialog(
+      context: context,
+      builder: (_) => _NoteViewDialog(
+        note: note,
+        onEdit: () {
+          Navigator.pop(context);
+          _openNoteEditor(
+            context: context,
+            book: note.book,
+            chapter: note.chapter,
+            verseFrom: note.verseFrom,
+            verseTo: note.verseTo,
+            existingNote: note,
+          );
+        },
+        onDelete: () async {
+          Navigator.pop(context);
+          await widget.notes.deleteNote(note.id!);
+        },
+      ),
+    );
+  }
+
+  Future<void> _openNoteEditor({
+    required BuildContext context,
+    required int book,
+    required int chapter,
+    required int verseFrom,
+    required int verseTo,
+    Note? existingNote,
+  }) async {
+    final controller =
+        TextEditingController(text: existingNote?.text ?? '');
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: Text(existingNote != null ? '노트 편집' : '노트 추가'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '$chapter장 $verseFrom${verseFrom != verseTo ? '-$verseTo' : ''}절',
+              style: TextStyle(
+                fontSize: 12,
+                color: Theme.of(context).colorScheme.primary,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            TextField(
+              controller: controller,
+              minLines: 3,
+              maxLines: 8,
+              decoration: const InputDecoration(
+                hintText: '여기에 노트를 입력하세요...',
+                border: OutlineInputBorder(),
+              ),
+              autofocus: true,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, controller.text),
+            child: const Text('저장'),
+          ),
+        ],
+      ),
+    );
+    if (result != null && result.trim().isNotEmpty) {
+      final note = Note(
+        id: existingNote?.id,
+        book: book,
+        chapter: chapter,
+        verseFrom: verseFrom,
+        verseTo: verseTo,
+        text: result.trim(),
+      );
+      await widget.notes.saveNote(note);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final verses = widget.bible.versesFor(widget.sourceId);
+    if (verses.isEmpty) {
+      return Center(child: Text(widget.emptyText));
+    }
+
+    return Stack(
+      children: [
+        ListView.builder(
+          controller: widget.scrollController,
+          padding: EdgeInsets.fromLTRB(
+              16, 8, 16, _selectionMode ? 72 : 8),
+          itemCount: verses.length,
+          itemBuilder: (_, i) {
+            final v = verses[i];
+            final key =
+                _verseKeys.putIfAbsent(v.verse, () => GlobalKey());
+            final hasNote = widget.notes.hasNote(v.verse);
+            final isSelected = _selectedVerses.contains(v.verse);
+            return _VerseItem(
+              key: key,
+              verse: v,
+              fontSize: widget.fontSize,
+              hasNote: hasNote,
+              isSelected: isSelected,
+              selectionMode: _selectionMode,
+              onTap: () => _onVerseTap(v),
+              onLongPress: () => _onVerseLongPress(v),
+            );
+          },
+        ),
+        // Selection mode action bar
+        if (_selectionMode)
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Material(
+              elevation: 8,
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 16, vertical: 8),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                child: Row(
+                  children: [
+                    Text(
+                      '${_selectedVerses.length}절 선택됨',
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.primary,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const Spacer(),
+                    TextButton.icon(
+                      icon: const Icon(Icons.note_add),
+                      label: const Text('노트 추가'),
+                      onPressed: _showAddNoteDialog,
+                    ),
+                    TextButton(
+                      onPressed: _cancelSelection,
+                      child: const Text('취소'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }
@@ -253,8 +569,6 @@ class _CompareView extends StatefulWidget {
 }
 
 class _CompareViewState extends State<_CompareView> {
-  // Stable set of linked controllers (one per possible compare slot),
-  // created once so we never dispose a controller that is still attached.
   late final _LinkedScrollGroup _linked;
   late final List<ScrollController> _controllers;
 
@@ -285,7 +599,6 @@ class _CompareViewState extends State<_CompareView> {
   Widget build(BuildContext context) {
     final ids = widget.bible.selectedIds;
     if (widget.bible.compareAxis == Axis.horizontal) {
-      // Side-by-side: one shared vertical scroll, verses aligned by number.
       return _AlignedTable(
         ids: ids,
         nameFor: _nameFor,
@@ -294,7 +607,6 @@ class _CompareViewState extends State<_CompareView> {
       );
     }
 
-    // Top/bottom: stacked full-width panels with linked scrolling.
     final panels = <Widget>[];
     for (int i = 0; i < ids.length; i++) {
       final id = ids[i];
@@ -307,14 +619,15 @@ class _CompareViewState extends State<_CompareView> {
           controller: _controllers[i],
         ),
       ));
-      if (i < ids.length - 1) panels.add(const Divider(height: 1));
+      if (i < ids.length - 1) {
+        panels.add(const VerticalDivider(width: 1));
+      }
     }
-    return Column(children: panels);
+    return Row(children: panels);
   }
 }
 
-/// Horizontal compare rendered as one scrollable table so every panel is
-/// perfectly synchronized and each verse row lines up by verse number.
+/// Horizontal compare: single scrollable table with verses aligned by number.
 class _AlignedTable extends StatelessWidget {
   final List<String> ids;
   final String Function(String) nameFor;
@@ -330,8 +643,7 @@ class _AlignedTable extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Union of verse numbers across all selected translations.
-    final maps = <String, Map<int, String>>{};
+    final maps      = <String, Map<int, String>>{};
     final verseNums = <int>{};
     for (final id in ids) {
       final m = <int, String>{};
@@ -346,7 +658,8 @@ class _AlignedTable extends StatelessWidget {
 
     Widget headerCell(int i) => Expanded(
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+            padding:
+                const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             color: scheme.surfaceContainerHighest,
             child: Row(
               children: [
@@ -368,7 +681,6 @@ class _AlignedTable extends StatelessWidget {
 
     return Column(
       children: [
-        // Sticky header
         Row(
           children: [
             const SizedBox(width: 32),
@@ -386,7 +698,7 @@ class _AlignedTable extends StatelessWidget {
             itemBuilder: (_, r) {
               final vn = sortedNums[r];
               return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.symmetric(vertical: 6),
                 child: Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -404,13 +716,10 @@ class _AlignedTable extends StatelessWidget {
                     for (int i = 0; i < ids.length; i++) ...[
                       if (i > 0) const SizedBox(width: 8),
                       Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.only(right: 4),
-                          child: Text(
-                            maps[ids[i]]?[vn] ?? '',
-                            style:
-                                TextStyle(fontSize: fontSize, height: 1.5),
-                          ),
+                        child: Text(
+                          maps[ids[i]]?[vn] ?? '',
+                          style:
+                              TextStyle(fontSize: fontSize, height: 1.5),
                         ),
                       ),
                     ],
@@ -447,7 +756,8 @@ class _PanelColumn extends StatelessWidget {
       children: [
         Container(
           width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          padding:
+              const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
           color: Theme.of(context).colorScheme.surfaceContainerHighest,
           child: Row(
             children: [
@@ -468,7 +778,8 @@ class _PanelColumn extends StatelessWidget {
         Expanded(
           child: ListView.builder(
             controller: controller,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            padding: const EdgeInsets.symmetric(
+                horizontal: 8, vertical: 4),
             itemCount: verses.length,
             itemBuilder: (_, i) =>
                 _VerseItem(verse: verses[i], fontSize: fontSize),
@@ -501,7 +812,7 @@ class _OrderBadge extends StatelessWidget {
   }
 }
 
-/// Keeps several [ScrollController]s in sync by offset.
+/// Keeps several [ScrollController]s in sync by fraction of maxScrollExtent.
 class _LinkedScrollGroup {
   final List<ScrollController> _controllers = [];
   bool _syncing = false;
@@ -530,9 +841,7 @@ class _LinkedScrollGroup {
   }
 
   void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
-    }
+    for (final c in _controllers) { c.dispose(); }
     _controllers.clear();
   }
 }
@@ -542,35 +851,131 @@ class _LinkedScrollGroup {
 class _VerseItem extends StatelessWidget {
   final Verse verse;
   final double fontSize;
+  final bool hasNote;
+  final bool isSelected;
+  final bool selectionMode;
+  final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
 
-  const _VerseItem({required this.verse, required this.fontSize});
+  const _VerseItem({
+    super.key,
+    required this.verse,
+    required this.fontSize,
+    this.hasNote = false,
+    this.isSelected = false,
+    this.selectionMode = false,
+    this.onTap,
+    this.onLongPress,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(
-            width: 28,
-            child: Text(
-              '${verse.verse}',
-              style: TextStyle(
-                fontSize: fontSize * 0.8,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
+    final scheme = Theme.of(context).colorScheme;
+    final bgColor = isSelected
+        ? scheme.primaryContainer.withValues(alpha: 0.5)
+        : Colors.transparent;
+
+    Widget textContent = Text(
+      verse.text,
+      style: TextStyle(
+        fontSize: fontSize,
+        height: 1.6,
+        decoration: hasNote ? TextDecoration.underline : null,
+        decorationStyle:
+            hasNote ? TextDecorationStyle.dashed : null,
+        decorationColor:
+            hasNote ? scheme.tertiary : null,
+        decorationThickness: hasNote ? 1.5 : null,
+      ),
+    );
+
+    return GestureDetector(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        color: bgColor,
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 28,
+              child: Row(
+                children: [
+                  if (selectionMode)
+                    Icon(
+                      isSelected
+                          ? Icons.check_circle
+                          : Icons.circle_outlined,
+                      size: 16,
+                      color: isSelected
+                          ? scheme.primary
+                          : scheme.outline,
+                    )
+                  else
+                    Text(
+                      '${verse.verse}',
+                      style: TextStyle(
+                        fontSize: fontSize * 0.8,
+                        fontWeight: FontWeight.bold,
+                        color: scheme.primary,
+                      ),
+                    ),
+                ],
               ),
             ),
-          ),
-          Expanded(
-            child: Text(
-              verse.text,
-              style: TextStyle(fontSize: fontSize, height: 1.6),
-            ),
-          ),
-        ],
+            Expanded(child: textContent),
+          ],
+        ),
       ),
+    );
+  }
+}
+
+// ── Note view dialog ─────────────────────────────────────────────────────────
+
+class _NoteViewDialog extends StatelessWidget {
+  final Note note;
+  final VoidCallback onEdit;
+  final VoidCallback onDelete;
+
+  const _NoteViewDialog({
+    required this.note,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final verseLabel = note.verseFrom == note.verseTo
+        ? '${note.chapter}장 ${note.verseFrom}절'
+        : '${note.chapter}장 ${note.verseFrom}-${note.verseTo}절';
+
+    return AlertDialog(
+      title: Text(verseLabel,
+          style: TextStyle(color: scheme.primary, fontSize: 15)),
+      content: SingleChildScrollView(
+        child: Text(note.text, style: const TextStyle(fontSize: 15)),
+      ),
+      actions: [
+        TextButton.icon(
+          icon: const Icon(Icons.delete_outline),
+          label: const Text('삭제'),
+          style: TextButton.styleFrom(
+              foregroundColor: scheme.error),
+          onPressed: onDelete,
+        ),
+        TextButton.icon(
+          icon: const Icon(Icons.edit),
+          label: const Text('편집'),
+          onPressed: onEdit,
+        ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('닫기'),
+        ),
+      ],
     );
   }
 }
@@ -587,7 +992,8 @@ class _Error extends StatelessWidget {
           padding: const EdgeInsets.all(24),
           child: Text(
             '오류: $message',
-            style: TextStyle(color: Theme.of(context).colorScheme.error),
+            style:
+                TextStyle(color: Theme.of(context).colorScheme.error),
           ),
         ),
       );

@@ -5,20 +5,28 @@ import '../../models/source_info.dart';
 import '../../providers/bible_provider.dart';
 import '../../providers/settings_provider.dart';
 
-/// Bottom-sheet for choosing translations and compare settings.
-/// Uses [StatefulWidget] + explicit [Consumer] so state updates are always
-/// reflected even inside an overlay route.
+/// Bottom-sheet for choosing translations.
+///
+/// [compareMode] = false → single-translation picker (radio style, no compare UI)
+/// [compareMode] = true  → compare picker (multi-select, layout options)
 class TranslationSelector extends StatefulWidget {
   final List<SourceInfo> allSources;
+  final bool compareMode;
 
-  const TranslationSelector({super.key, required this.allSources});
+  const TranslationSelector({
+    super.key,
+    required this.allSources,
+    this.compareMode = false,
+  });
 
   @override
   State<TranslationSelector> createState() => _TranslationSelectorState();
 }
 
 class _TranslationSelectorState extends State<TranslationSelector> {
-  void _onTap(BibleProvider bible, List<String> selected, bool compare, String id) {
+  void _onTap(
+      BibleProvider bible, List<String> selected, String id) {
+    final compare = widget.compareMode;
     final current = List<String>.from(selected);
     if (compare) {
       if (current.contains(id)) {
@@ -33,15 +41,18 @@ class _TranslationSelectorState extends State<TranslationSelector> {
         ..add(id);
     }
     bible.setSelectedIds(current, widget.allSources);
+    // In single mode, close the sheet after selecting
+    if (!compare && Navigator.canPop(context)) {
+      Navigator.pop(context);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Consumer2<BibleProvider, SettingsProvider>(
       builder: (ctx, bible, settings, _) {
-        final t        = settings.t;
+        final t       = settings.t;
         final selected = bible.selectedIds;
-        final compare  = bible.compareMode;
 
         return DraggableScrollableSheet(
           expand: false,
@@ -54,40 +65,44 @@ class _TranslationSelectorState extends State<TranslationSelector> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
                 child: Row(
                   children: [
-                    Text(t.selectTranslation,
-                        style: Theme.of(ctx).textTheme.titleMedium?.copyWith(
-                              fontWeight: FontWeight.bold,
-                            )),
+                    Text(
+                      widget.compareMode
+                          ? t.selectCompare
+                          : t.selectTranslation,
+                      style:
+                          Theme.of(ctx).textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              )),
                     const Spacer(),
-                    Text(t.compare),
-                    Switch(
-                      value: compare,
-                      onChanged: (_) => bible.toggleCompare(widget.allSources),
-                    ),
                   ],
                 ),
               ),
-              // Mode hint + colour indicator
+              // Hint
               Container(
                 width: double.infinity,
                 margin: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  color: compare
+                  color: widget.compareMode
                       ? Theme.of(ctx).colorScheme.primaryContainer
                       : Theme.of(ctx).colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(6),
                 ),
                 child: Text(
-                  compare ? t.compareHint : t.singleSelectHint,
+                  widget.compareMode
+                      ? t.compareHint
+                      : t.singleSelectHint,
                   style: TextStyle(
-                      fontSize: 12,
-                      color: compare
-                          ? Theme.of(ctx).colorScheme.onPrimaryContainer
-                          : Theme.of(ctx).colorScheme.outline),
+                    fontSize: 12,
+                    color: widget.compareMode
+                        ? Theme.of(ctx).colorScheme.onPrimaryContainer
+                        : Theme.of(ctx).colorScheme.outline,
+                  ),
                 ),
               ),
-              if (compare) ...[
+              // Layout options only in compare mode
+              if (widget.compareMode) ...[
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
@@ -95,14 +110,18 @@ class _TranslationSelectorState extends State<TranslationSelector> {
                       Text('${t.layout}: '),
                       ChoiceChip(
                         label: Text(t.sideBySide),
-                        selected: bible.compareAxis == Axis.horizontal,
-                        onSelected: (_) => bible.setCompareAxis(Axis.horizontal),
+                        selected:
+                            bible.compareAxis == Axis.horizontal,
+                        onSelected: (_) =>
+                            bible.setCompareAxis(Axis.horizontal),
                       ),
                       const SizedBox(width: 8),
                       ChoiceChip(
                         label: Text(t.topBottom),
-                        selected: bible.compareAxis == Axis.vertical,
-                        onSelected: (_) => bible.setCompareAxis(Axis.vertical),
+                        selected:
+                            bible.compareAxis == Axis.vertical,
+                        onSelected: (_) =>
+                            bible.setCompareAxis(Axis.vertical),
                       ),
                     ],
                   ),
@@ -119,19 +138,22 @@ class _TranslationSelectorState extends State<TranslationSelector> {
                     final order = selected.indexOf(src.id);
                     final isSelected = order >= 0;
                     return ListTile(
-                      onTap: () => _onTap(bible, selected, compare, src.id),
+                      onTap: () =>
+                          _onTap(bible, selected, src.id),
                       leading: _SelectionMark(
-                        compare: compare,
+                        compare: widget.compareMode,
                         selected: isSelected,
                         order: order,
                       ),
                       title: Text(src.name),
-                      subtitle: isSelected && compare
+                      subtitle: isSelected && widget.compareMode
                           ? Text(
                               '${order + 1}번째 선택',
                               style: TextStyle(
                                   fontSize: 11,
-                                  color: Theme.of(ctx).colorScheme.primary),
+                                  color: Theme.of(ctx)
+                                      .colorScheme
+                                      .primary),
                             )
                           : null,
                     );
@@ -146,11 +168,10 @@ class _TranslationSelectorState extends State<TranslationSelector> {
   }
 }
 
-/// Shows a numbered priority badge (compare mode) or a radio/check mark.
 class _SelectionMark extends StatelessWidget {
   final bool compare;
   final bool selected;
-  final int order; // 0-based priority
+  final int order;
 
   const _SelectionMark({
     required this.compare,
@@ -178,7 +199,6 @@ class _SelectionMark extends StatelessWidget {
         ),
       );
     }
-    // single-select → radio style
     return Icon(
       selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
       color: selected ? scheme.primary : scheme.outline,

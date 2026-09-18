@@ -8,6 +8,7 @@ import 'package:provider/provider.dart';
 
 import '../../constants/l10n.dart';
 import '../../models/source_info.dart';
+import '../../providers/note_provider.dart';
 import '../../providers/settings_provider.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -58,7 +59,6 @@ class _SettingsBody extends StatelessWidget {
             ],
           ),
         ),
-        // Font preview
         Padding(
           padding: const EdgeInsets.fromLTRB(16, 0, 16, 8),
           child: Container(
@@ -82,13 +82,9 @@ class _SettingsBody extends StatelessWidget {
           child: Column(
             children: [
               RadioListTile<AppLang>(
-                title: Text(t.korean),
-                value: AppLang.ko,
-              ),
+                  title: Text(t.korean), value: AppLang.ko),
               RadioListTile<AppLang>(
-                title: Text(t.english),
-                value: AppLang.en,
-              ),
+                  title: Text(t.english), value: AppLang.en),
             ],
           ),
         ),
@@ -101,19 +97,28 @@ class _SettingsBody extends StatelessWidget {
           child: Column(
             children: [
               RadioListTile<ThemeMode>(
-                title: Text(t.themeSystem),
-                value: ThemeMode.system,
-              ),
+                  title: Text(t.themeSystem), value: ThemeMode.system),
               RadioListTile<ThemeMode>(
-                title: Text(t.themeLight),
-                value: ThemeMode.light,
-              ),
+                  title: Text(t.themeLight), value: ThemeMode.light),
               RadioListTile<ThemeMode>(
-                title: Text(t.themeDark),
-                value: ThemeMode.dark,
-              ),
+                  title: Text(t.themeDark), value: ThemeMode.dark),
             ],
           ),
+        ),
+        // ── 노트 ─────────────────────────────────────────────────────────
+        const Divider(),
+        _SectionHeader(t.noteSection),
+        ListTile(
+          leading: const Icon(Icons.upload_file),
+          title: Text(t.exportNotes),
+          subtitle: const Text('CSV 파일로 저장'),
+          onTap: () => _exportNotes(context),
+        ),
+        ListTile(
+          leading: const Icon(Icons.download),
+          title: Text(t.importNotes),
+          subtitle: const Text('CSV 파일에서 가져오기'),
+          onTap: () => _importNotes(context),
         ),
         // ── 성경 목록 ─────────────────────────────────────────────────────
         const Divider(),
@@ -147,6 +152,57 @@ class _SettingsBody extends StatelessWidget {
     );
   }
 
+  Future<void> _exportNotes(BuildContext context) async {
+    final notes = context.read<NoteProvider>();
+    final t = context.read<SettingsProvider>().t;
+    try {
+      final path = await notes.exportCsv();
+      if (context.mounted) {
+        _showSnack(context, '${t.exportSuccess}: $path');
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _showSnack(context, '오류: $e');
+      }
+    }
+  }
+
+  Future<void> _importNotes(BuildContext context) async {
+    final notes = context.read<NoteProvider>();
+    final t = context.read<SettingsProvider>().t;
+
+    final result = await FilePicker.platform.pickFiles(
+      type: FileType.any,
+      allowMultiple: false,
+    );
+    if (result == null || result.files.isEmpty) return;
+    final path = result.files.first.path;
+    if (path == null) return;
+
+    if (!path.toLowerCase().endsWith('.csv')) {
+      if (context.mounted) {
+        _showSnack(context, t.onlySupported('.csv'));
+      }
+      return;
+    }
+
+    try {
+      final count = await notes.importCsv(path);
+      if (context.mounted) {
+        _showSnack(context, t.importSuccess(count));
+      }
+    } catch (e) {
+      if (context.mounted) {
+        _showSnack(context, t.importFailed);
+      }
+    }
+  }
+
+  void _showSnack(BuildContext context, String msg) {
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(msg)));
+  }
+
   List<Widget> _buildSourceList(
     BuildContext context,
     SettingsProvider settings,
@@ -163,7 +219,9 @@ class _SettingsBody extends StatelessWidget {
               : Theme.of(context).colorScheme.outline,
         ),
         title: Text(src.name),
-        subtitle: src.isBuiltIn ? Text(settings.t.builtIn) : Text(src.docPath),
+        subtitle: src.isBuiltIn
+            ? Text(settings.t.builtIn)
+            : Text(src.docPath),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -229,18 +287,15 @@ class _SettingsBody extends StatelessWidget {
       return;
     }
 
-    // Copy to documents directory
-    final docs = await getApplicationDocumentsDirectory();
-    final destDir  = Directory(p.join(docs.path, 'bible_db'));
+    final docs    = await getApplicationDocumentsDirectory();
+    final destDir = Directory(p.join(docs.path, 'bible_db'));
     await destDir.create(recursive: true);
     final destPath = p.join(destDir.path, p.basename(srcPath));
     await File(srcPath).copy(destPath);
 
-    // For hymns, also copy the sibling .cmp (sheet-music archive) if present,
-    // so the same-named sheet music loads automatically.
     var copiedCmp = false;
     if (type == SourceType.hymn) {
-      final base = p.basenameWithoutExtension(srcPath);
+      final base   = p.basenameWithoutExtension(srcPath);
       final cmpSrc = p.join(p.dirname(srcPath), '$base.cmp');
       if (File(cmpSrc).existsSync()) {
         await File(cmpSrc).copy(p.join(destDir.path, '$base.cmp'));
@@ -248,8 +303,8 @@ class _SettingsBody extends StatelessWidget {
       }
     }
 
-    final id   = p.basenameWithoutExtension(srcPath);
-    final src  = SourceInfo(
+    final id  = p.basenameWithoutExtension(srcPath);
+    final src = SourceInfo(
       id:      id,
       name:    id,
       type:    type,
@@ -260,9 +315,9 @@ class _SettingsBody extends StatelessWidget {
       context.read<SettingsProvider>().addSource(src);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            copiedCmp ? '${t.addedMsg(id)} · ${t.cmpAlsoAdded}' : t.addedMsg(id),
-          ),
+          content: Text(copiedCmp
+              ? '${t.addedMsg(id)} · ${t.cmpAlsoAdded}'
+              : t.addedMsg(id)),
         ),
       );
     }
@@ -277,8 +332,12 @@ class _SettingsBody extends StatelessWidget {
         title: Text(t.delete),
         content: Text(t.removeConfirm(src.name)),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: Text(t.cancel)),
-          TextButton(onPressed: () => Navigator.pop(context, true),  child: Text(t.delete)),
+          TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: Text(t.cancel)),
+          TextButton(
+              onPressed: () => Navigator.pop(context, true),
+              child: Text(t.delete)),
         ],
       ),
     );

@@ -1,7 +1,4 @@
 /// Lightweight in-app localization (Korean / English).
-///
-/// Only the app "chrome" (menus, buttons, section titles) is translated.
-/// Source names (bibles / hymns / commentaries) keep their file names as-is.
 enum AppLang { ko, en }
 
 class L10n {
@@ -24,26 +21,36 @@ class L10n {
   // ── Bible screen ─────────────────────────────────────────────────────
   String get prevChapter => pick('이전 장', 'Previous chapter');
   String get nextChapter => pick('다음 장', 'Next chapter');
+  String get translationSettings => pick('역본 선택', 'Select translation');
+  String get compareSettings     => pick('역본 대조', 'Compare translations');
   String get translationCompareSettings =>
       pick('번역/비교 설정', 'Translation / compare');
   String get searchBible => pick('성경 검색', 'Search Bible');
   String get noData      => pick('데이터가 없습니다', 'No data');
   String chapter(int n)  => pick('$n장', 'Ch. $n');
+  String verse(int n)    => pick('$n절', 'v.$n');
   String error(String m) => pick('오류: $m', 'Error: $m');
 
   // ── Translation selector ─────────────────────────────────────────────
-  String get selectTranslation => pick('번역 선택', 'Select translation');
+  String get selectTranslation => pick('역본 선택', 'Select translation');
+  String get selectCompare     => pick('역본 대조 설정', 'Compare settings');
   String get compare           => pick('비교', 'Compare');
   String get layout            => pick('레이아웃', 'Layout');
   String get sideBySide        => pick('좌우', 'Side by side');
   String get topBottom         => pick('상하', 'Top / bottom');
   String get compareHint => pick(
-        '비교는 최대 4개까지 선택할 수 있으며, 선택한 순서대로 표시됩니다.',
-        'Up to 4 can be compared, shown in the order selected.',
+        '비교할 역본을 선택하세요 (최대 4개).',
+        'Select translations to compare (up to 4).',
       );
   String get singleSelectHint =>
-      pick('비교가 꺼져 있어 한 개만 선택됩니다.',
-          'Compare is off — only one can be selected.');
+      pick('읽을 역본 한 개를 선택하세요.',
+          'Select one translation to read.');
+
+  // ── Book selector ────────────────────────────────────────────────────
+  String get oldTestament => pick('구약', 'Old Testament');
+  String get newTestament => pick('신약', 'New Testament');
+  String get selectVerse  => pick('절 선택', 'Select verse');
+  String get goToChapter  => pick('장 처음으로', 'Go to chapter start');
 
   // ── Commentary screen ────────────────────────────────────────────────
   String commentaryTitle(String chapterLabel) =>
@@ -64,6 +71,25 @@ class L10n {
   String get lyrics        => pick('가사', 'Lyrics');
   String get cannotLoadImage =>
       pick('악보 이미지를 불러올 수 없습니다', 'Cannot load sheet-music image');
+
+  // ── Notes ────────────────────────────────────────────────────────────
+  String get addNote      => pick('노트 추가', 'Add note');
+  String get editNote     => pick('노트 편집', 'Edit note');
+  String get deleteNote   => pick('노트 삭제', 'Delete note');
+  String get noteHint     => pick('여기에 노트를 입력하세요...', 'Enter note here...');
+  String get noteSaved    => pick('노트 저장됨', 'Note saved');
+  String get noteDeleted  => pick('노트 삭제됨', 'Note deleted');
+  String noteVerse(int from, int to) => from == to
+      ? pick('$from절', 'v.$from')
+      : pick('$from-$to절', 'v.$from-$to');
+  String get cancelSelection => pick('선택 취소', 'Cancel selection');
+  String get verseSelected   => pick('절 선택됨', 'verse(s) selected');
+  String get exportNotes     => pick('노트 내보내기 (CSV)', 'Export notes (CSV)');
+  String get importNotes     => pick('노트 가져오기 (CSV)', 'Import notes (CSV)');
+  String get exportSuccess   => pick('내보내기 완료', 'Export complete');
+  String importSuccess(int n) => pick('$n개 노트 가져옴', '$n notes imported');
+  String get importFailed    => pick('가져오기 실패', 'Import failed');
+  String get noteSection     => pick('노트', 'Notes');
 
   // ── Settings screen ──────────────────────────────────────────────────
   String get view           => pick('보기', 'View');
@@ -91,10 +117,6 @@ class L10n {
       pick('$exts 파일만 지원됩니다', 'Only $exts files are supported');
   String get cmpAlsoAdded =>
       pick('악보(.cmp)도 함께 추가됨', 'Sheet music (.cmp) also added');
-
-  // ── Book selector ────────────────────────────────────────────────────
-  String get oldTestament => pick('구약', 'Old Testament');
-  String get newTestament => pick('신약', 'New Testament');
 
   // ── Search screen ────────────────────────────────────────────────────
   String get searchWordHint => pick('단어 또는 구절 검색...', 'Search word or phrase...');
