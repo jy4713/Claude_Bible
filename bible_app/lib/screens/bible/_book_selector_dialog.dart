@@ -106,6 +106,42 @@ class _BookSelectorDialogState extends State<BookSelectorDialog>
   }
 }
 
+/// Show the chapter-picker dialog for [book] directly (skipping book selection).
+Future<Map<String, int>?> showChapterSelector(
+  BuildContext context, {
+  required BookInfo book,
+  required int currentChapter,
+  required int currentVerse,
+}) {
+  return showDialog<Map<String, int>>(
+    context: context,
+    builder: (_) => _ChapterDialog(
+      book: book,
+      currentChapter: currentChapter,
+      currentVerse: currentVerse,
+    ),
+  );
+}
+
+/// Show the verse-picker dialog for [book]+[chapter] directly.
+Future<Map<String, int>?> showVerseSelector(
+  BuildContext context, {
+  required BookInfo book,
+  required int chapter,
+  required int currentVerse,
+  required int verseCount,
+}) {
+  return showDialog<Map<String, int>>(
+    context: context,
+    builder: (_) => _VerseDialog(
+      book: book,
+      chapter: chapter,
+      currentVerse: currentVerse,
+      verseCount: verseCount,
+    ),
+  );
+}
+
 // ── Chapter dialog ───────────────────────────────────────────────────────────
 
 class _ChapterDialog extends StatelessWidget {
@@ -135,6 +171,7 @@ class _ChapterDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxH = MediaQuery.of(context).size.height * 0.65;
     return Dialog(
+      clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxH),
         child: Column(
@@ -147,66 +184,62 @@ class _ChapterDialog extends StatelessWidget {
             ),
             const Divider(height: 0),
             Expanded(
-              child: SingleChildScrollView(
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(12),
-                  gridDelegate:
-                      const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 6,
-                    mainAxisSpacing: 8,
-                    crossAxisSpacing: 8,
-                    childAspectRatio: 1.2,
-                  ),
-                  itemCount: book.chapters,
-                  itemBuilder: (_, i) {
-                    final ch = i + 1;
-                    final selected = ch == currentChapter;
-                    return InkWell(
-                      onTap: () async {
-                        final verseCount =
-                            await _getVerseCount(context, ch);
-                        if (!context.mounted) return;
-                        final result = await showDialog<Map<String, int>>(
-                          context: context,
-                          builder: (_) => _VerseDialog(
-                            book: book,
-                            chapter: ch,
-                            currentVerse:
-                                ch == currentChapter ? currentVerse : 1,
-                            verseCount: verseCount,
-                          ),
-                        );
-                        if (result != null && context.mounted) {
-                          Navigator.pop(context, result);
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(6),
-                      child: Container(
-                        alignment: Alignment.center,
-                        decoration: BoxDecoration(
-                          color: selected
-                              ? Theme.of(context).colorScheme.primary
-                              : Theme.of(context)
-                                  .colorScheme
-                                  .surfaceContainerHighest,
-                          borderRadius: BorderRadius.circular(6),
+              child: GridView.builder(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
+                gridDelegate:
+                    const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 6,
+                  mainAxisSpacing: 8,
+                  crossAxisSpacing: 8,
+                  childAspectRatio: 1.2,
+                ),
+                itemCount: book.chapters,
+                itemBuilder: (_, i) {
+                  final ch = i + 1;
+                  final selected = ch == currentChapter;
+                  return InkWell(
+                    onTap: () async {
+                      final verseCount =
+                          await _getVerseCount(context, ch);
+                      if (!context.mounted) return;
+                      final result = await showDialog<Map<String, int>>(
+                        context: context,
+                        builder: (_) => _VerseDialog(
+                          book: book,
+                          chapter: ch,
+                          currentVerse:
+                              ch == currentChapter ? currentVerse : 1,
+                          verseCount: verseCount,
                         ),
-                        child: Text(
-                          '$ch',
-                          style: TextStyle(
-                            color: selected
-                                ? Theme.of(context).colorScheme.onPrimary
-                                : null,
-                            fontWeight:
-                                selected ? FontWeight.bold : null,
-                          ),
+                      );
+                      if (result != null && context.mounted) {
+                        Navigator.pop(context, result);
+                      }
+                    },
+                    borderRadius: BorderRadius.circular(6),
+                    child: Container(
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        color: selected
+                            ? Theme.of(context).colorScheme.primary
+                            : Theme.of(context)
+                                .colorScheme
+                                .surfaceContainerHighest,
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        '$ch',
+                        style: TextStyle(
+                          color: selected
+                              ? Theme.of(context).colorScheme.onPrimary
+                              : null,
+                          fontWeight:
+                              selected ? FontWeight.bold : null,
                         ),
                       ),
-                    );
-                  },
-                ),
+                    ),
+                  );
+                },
               ),
             ),
           ],
@@ -235,6 +268,7 @@ class _VerseDialog extends StatelessWidget {
   Widget build(BuildContext context) {
     final maxH = MediaQuery.of(context).size.height * 0.65;
     return Dialog(
+      clipBehavior: Clip.antiAlias,
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxH),
         child: Column(
@@ -264,11 +298,8 @@ class _VerseDialog extends StatelessWidget {
             ),
             const Divider(height: 0),
             Expanded(
-              child: SingleChildScrollView(
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  padding: const EdgeInsets.all(12),
+              child: GridView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 12, 12, 20),
                   gridDelegate:
                       const SliverGridDelegateWithFixedCrossAxisCount(
                     crossAxisCount: 8,
@@ -308,7 +339,6 @@ class _VerseDialog extends StatelessWidget {
                       ),
                     );
                   },
-                ),
               ),
             ),
           ],

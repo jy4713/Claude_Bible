@@ -62,7 +62,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.watch<SettingsProvider>().t;
-    final labels = [t.bible, '역본대조', t.hymns, t.commentary, t.settings];
+    final labels = [t.bible, t.compareSettings, t.hymns, t.commentary, t.settings];
 
     return Scaffold(
       body: IndexedStack(

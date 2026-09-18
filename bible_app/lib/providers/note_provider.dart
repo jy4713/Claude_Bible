@@ -1,8 +1,8 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
-import 'package:path/path.dart' as p;
-import 'package:path_provider/path_provider.dart';
 
 import '../models/note.dart';
 import '../repositories/note_repository.dart';
@@ -58,7 +58,8 @@ class NoteProvider with ChangeNotifier {
     await _reloadCurrent();
   }
 
-  Future<String> exportCsv() async {
+  /// Returns the CSV content as UTF-8 bytes (for FilePicker.saveFile).
+  Future<Uint8List> buildCsvBytes() async {
     final notes = await NoteRepository.instance.getAllNotes();
     final buf = StringBuffer();
     buf.writeln('book,chapter,verse_from,verse_to,note,created_at');
@@ -67,10 +68,8 @@ class NoteProvider with ChangeNotifier {
       buf.writeln(
           '${n.book},${n.chapter},${n.verseFrom},${n.verseTo},"$escaped",${n.createdAt}');
     }
-    final dir = await getApplicationDocumentsDirectory();
-    final path = p.join(dir.path, 'bible_notes_export.csv');
-    await File(path).writeAsString(buf.toString(), flush: true);
-    return path;
+    // UTF-8 BOM so Excel / Windows file manager shows Korean correctly
+    return Uint8List.fromList([0xEF, 0xBB, 0xBF, ...utf8.encode(buf.toString())]);
   }
 
   Future<int> importCsv(String filePath) async {

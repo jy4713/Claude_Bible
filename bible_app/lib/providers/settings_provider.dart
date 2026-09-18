@@ -6,6 +6,7 @@ import '../models/source_info.dart';
 
 class SettingsProvider with ChangeNotifier {
   static const _kFontSize    = 'fontSize';
+  static const _kUiScale     = 'uiScale';
   static const _kThemeMode   = 'themeMode';
   static const _kLang        = 'appLang';
   static const _kBibles      = 'bibles';
@@ -13,6 +14,7 @@ class SettingsProvider with ChangeNotifier {
   static const _kHymns       = 'hymns';
 
   double _fontSize = 16.0;
+  double _uiScale  = 1.0;
   ThemeMode _themeMode = ThemeMode.system;
   AppLang _lang = AppLang.ko;
   List<SourceInfo> _bibles = [];
@@ -20,6 +22,7 @@ class SettingsProvider with ChangeNotifier {
   List<SourceInfo> _hymns = [];
 
   double get fontSize => _fontSize;
+  double get uiScale  => _uiScale;
   ThemeMode get themeMode => _themeMode;
   AppLang get lang => _lang;
   L10n get t => L10n(_lang);
@@ -40,6 +43,7 @@ class SettingsProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
 
     _fontSize = prefs.getDouble(_kFontSize) ?? 16.0;
+    _uiScale  = (prefs.getDouble(_kUiScale) ?? 1.0).clamp(0.9, 1.1);
     _themeMode = ThemeMode.values[prefs.getInt(_kThemeMode) ?? 0];
     _lang = AppLang.values[prefs.getInt(_kLang) ?? 0];
 
@@ -72,6 +76,13 @@ class SettingsProvider with ChangeNotifier {
     notifyListeners();
     final prefs = await SharedPreferences.getInstance();
     await prefs.setDouble(_kFontSize, _fontSize);
+  }
+
+  Future<void> setUiScale(double scale) async {
+    _uiScale = scale.clamp(0.9, 1.1);
+    notifyListeners();
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setDouble(_kUiScale, _uiScale);
   }
 
   Future<void> setThemeMode(ThemeMode mode) async {

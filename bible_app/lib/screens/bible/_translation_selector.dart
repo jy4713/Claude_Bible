@@ -99,33 +99,6 @@ class _TranslationSelectorState extends State<TranslationSelector> {
                   ),
                 ),
               ),
-              // Layout options only in compare mode
-              if (widget.compareMode) ...[
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16),
-                  child: Row(
-                    children: [
-                      Text('${t.layout}: '),
-                      ChoiceChip(
-                        label: Text(t.sideBySide),
-                        selected:
-                            bible.compareAxis == Axis.horizontal,
-                        onSelected: (_) =>
-                            bible.setCompareAxis(Axis.horizontal),
-                      ),
-                      const SizedBox(width: 8),
-                      ChoiceChip(
-                        label: Text(t.topBottom),
-                        selected:
-                            bible.compareAxis == Axis.vertical,
-                        onSelected: (_) =>
-                            bible.setCompareAxis(Axis.vertical),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 4),
-              ],
               const Divider(),
               Expanded(
                 child: ListView.builder(

@@ -22,13 +22,13 @@ class L10n {
   String get prevChapter => pick('이전 장', 'Previous chapter');
   String get nextChapter => pick('다음 장', 'Next chapter');
   String get translationSettings => pick('역본 선택', 'Select translation');
-  String get compareSettings     => pick('역본 대조', 'Compare translations');
+  String get compareSettings     => pick('역본대조', 'Compare');
   String get translationCompareSettings =>
       pick('번역/비교 설정', 'Translation / compare');
   String get searchBible => pick('성경 검색', 'Search Bible');
   String get noData      => pick('데이터가 없습니다', 'No data');
   String chapter(int n)  => pick('$n장', 'Ch. $n');
-  String verse(int n)    => pick('$n절', 'v.$n');
+  String verse(int n)    => pick('$n절', 'V. $n');
   String error(String m) => pick('오류: $m', 'Error: $m');
 
   // ── Translation selector ─────────────────────────────────────────────
@@ -93,7 +93,8 @@ class L10n {
 
   // ── Settings screen ──────────────────────────────────────────────────
   String get view           => pick('보기', 'View');
-  String get fontSize        => pick('글자 크기', 'Font size');
+  String get fontSize        => pick('성경 글자 크기', 'Bible font size');
+  String get uiFontSize      => pick('메뉴 글자 크기', 'UI font size');
   String get theme           => pick('테마', 'Theme');
   String get themeSystem     => pick('시스템 설정', 'System');
   String get themeLight      => pick('밝은 테마', 'Light');

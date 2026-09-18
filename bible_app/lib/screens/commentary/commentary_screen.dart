@@ -95,7 +95,12 @@ class CommentaryScreenState extends State<CommentaryScreen> {
       _chapter = chapter;
       _verse   = verse;
     });
-    _reload();
+    _reload().then((_) {
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _scrollToVerse(_verse));
+      }
+    });
   }
 
   void _prev() {

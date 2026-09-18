@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
 
 import '../../models/source_info.dart';
-import '../../models/verse.dart';
 import '../../providers/bible_provider.dart';
 
-/// Stateful compare view — renders all selectedIds side-by-side or top-bottom.
+/// Translation label colors — one per translation slot.
+const _kLabelColors = [
+  Color(0xFFE53935), // red   – slot 1
+  Color(0xFFF57C00), // amber – slot 2
+  Color(0xFF1565C0), // blue  – slot 3
+  Color(0xFF2E7D32), // green – slot 4
+];
+
+/// Stateful compare view — renders all selectedIds.
 class CompareView extends StatefulWidget {
   final BibleProvider bible;
   final List<SourceInfo> sources;
@@ -22,23 +29,62 @@ class CompareView extends StatefulWidget {
 }
 
 class _CompareViewState extends State<CompareView> {
-  late final _LinkedScrollGroup _linked;
-  late final List<ScrollController> _controllers;
+  final ScrollController _scrollController = ScrollController();
+  final Map<int, GlobalKey> _verseKeys = {};
+  int _lastVerseIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _linked = _LinkedScrollGroup();
-    _controllers = List.generate(
-      BibleProvider.maxCompare,
-      (_) => _linked.create(),
-    );
+    _lastVerseIndex = widget.bible.verseIndex;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+  }
+
+  @override
+  void didUpdateWidget(covariant CompareView old) {
+    super.didUpdateWidget(old);
+    final bookOrChapterChanged =
+        widget.bible.book != old.bible.book ||
+        widget.bible.chapter != old.bible.chapter;
+    if (bookOrChapterChanged) {
+      _verseKeys.clear();
+      _lastVerseIndex = widget.bible.verseIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+    } else if (widget.bible.verseIndex != _lastVerseIndex) {
+      _lastVerseIndex = widget.bible.verseIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+    }
   }
 
   @override
   void dispose() {
-    _linked.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _scrollToVerse() {
+    final idx = widget.bible.verseIndex;
+    if (idx <= 0) {
+      if (_scrollController.hasClients) {
+        _scrollController.animateTo(0,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOut);
+      }
+      return;
+    }
+    final ids = widget.bible.selectedIds;
+    if (ids.isEmpty) return;
+    final verses = widget.bible.versesFor(ids.first);
+    if (idx >= verses.length) return;
+    final vNum = verses[idx].verse;
+    final key = _verseKeys[vNum];
+    if (key?.currentContext != null) {
+      Scrollable.ensureVisible(
+        key!.currentContext!,
+        alignment: 0.0,
+        duration: const Duration(milliseconds: 300),
+      );
+    }
   }
 
   String _nameFor(String id) {
@@ -51,46 +97,105 @@ class _CompareViewState extends State<CompareView> {
   @override
   Widget build(BuildContext context) {
     final ids = widget.bible.selectedIds;
+
     if (widget.bible.compareAxis == Axis.horizontal) {
       return _AlignedTable(
         ids: ids,
         nameFor: _nameFor,
         bible: widget.bible,
         fontSize: widget.fontSize,
+        scrollController: _scrollController,
+        verseKeys: _verseKeys,
       );
     }
-    final panels = <Widget>[];
-    for (int i = 0; i < ids.length; i++) {
-      final id = ids[i];
-      panels.add(Expanded(
-        child: _PanelColumn(
-          order: i + 1,
-          name: _nameFor(id),
-          verses: widget.bible.versesFor(id),
-          fontSize: widget.fontSize,
-          controller: _controllers[i],
-        ),
-      ));
-      if (i < ids.length - 1) panels.add(const VerticalDivider(width: 1));
-    }
-    return Row(children: panels);
+
+    return _StackedView(
+      ids: ids,
+      nameFor: _nameFor,
+      bible: widget.bible,
+      fontSize: widget.fontSize,
+      scrollController: _scrollController,
+      verseKeys: _verseKeys,
+    );
   }
 }
 
-// ── Horizontal aligned table ─────────────────────────────────────────────────
+// ── Stacked per-verse view (세로) ────────────────────────────────────────────
 
-class _AlignedTable extends StatelessWidget {
+class _StackedView extends StatelessWidget {
   final List<String> ids;
   final String Function(String) nameFor;
   final BibleProvider bible;
   final double fontSize;
+  final ScrollController scrollController;
+  final Map<int, GlobalKey> verseKeys;
 
-  const _AlignedTable({
+  const _StackedView({
     required this.ids,
     required this.nameFor,
     required this.bible,
     required this.fontSize,
+    required this.scrollController,
+    required this.verseKeys,
   });
+
+  Widget _buildVerseRow(BuildContext context, int vn,
+      Map<String, Map<int, String>> maps, ColorScheme scheme) {
+    final key = verseKeys.putIfAbsent(vn, () => GlobalKey());
+    return Padding(
+      key: key,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 28,
+            child: Text(
+              '$vn',
+              style: TextStyle(
+                fontSize: fontSize * 0.8,
+                fontWeight: FontWeight.bold,
+                color: scheme.primary,
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                for (int i = 0; i < ids.length; i++) ...[
+                  if (i > 0) const SizedBox(height: 6),
+                  RichText(
+                    text: TextSpan(
+                      children: [
+                        TextSpan(
+                          text: '[${nameFor(ids[i])}] ',
+                          style: TextStyle(
+                            color: _kLabelColors[i % _kLabelColors.length],
+                            fontWeight: FontWeight.bold,
+                            fontSize: fontSize * 0.85,
+                          ),
+                        ),
+                        TextSpan(
+                          text: maps[ids[i]]?[vn] ?? '',
+                          style: TextStyle(
+                            color: scheme.onSurface,
+                            fontSize: fontSize,
+                            height: 1.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -107,156 +212,52 @@ class _AlignedTable extends StatelessWidget {
     final sortedNums = verseNums.toList()..sort();
     final scheme = Theme.of(context).colorScheme;
 
-    Widget headerCell(int i) => Expanded(
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            color: scheme.surfaceContainerHighest,
-            child: Row(
-              children: [
-                _OrderBadge(order: i + 1),
-                const SizedBox(width: 6),
-                Expanded(
-                  child: Text(
-                    nameFor(ids[i]),
-                    style: const TextStyle(
-                        fontWeight: FontWeight.bold, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
+    final rows = <Widget>[];
+    for (int r = 0; r < sortedNums.length; r++) {
+      if (r > 0) rows.add(const Divider(height: 1, indent: 32));
+      rows.add(_buildVerseRow(context, sortedNums[r], maps, scheme));
+    }
 
-    return Column(
-      children: [
-        Row(
-          children: [
-            const SizedBox(width: 32),
-            for (int i = 0; i < ids.length; i++) ...[
-              if (i > 0) const SizedBox(width: 8),
-              headerCell(i),
-            ],
-          ],
-        ),
-        const Divider(height: 1),
-        Expanded(
-          child: ListView.builder(
-            padding: const EdgeInsets.symmetric(vertical: 4),
-            itemCount: sortedNums.length,
-            itemBuilder: (_, r) {
-              final vn = sortedNums[r];
-              return Padding(
-                padding: const EdgeInsets.symmetric(vertical: 6),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SizedBox(
-                      width: 32,
-                      child: Text(
-                        '$vn',
-                        style: TextStyle(
-                          fontSize: fontSize * 0.8,
-                          fontWeight: FontWeight.bold,
-                          color: scheme.primary,
-                        ),
-                      ),
-                    ),
-                    for (int i = 0; i < ids.length; i++) ...[
-                      if (i > 0) const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          maps[ids[i]]?[vn] ?? '',
-                          style: TextStyle(fontSize: fontSize, height: 1.5),
-                        ),
-                      ),
-                    ],
-                  ],
-                ),
-              );
-            },
-          ),
-        ),
-      ],
+    return SingleChildScrollView(
+      controller: scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 4, horizontal: 12),
+      child: Column(children: rows),
     );
   }
 }
 
-// ── Vertical panel column ────────────────────────────────────────────────────
+// ── Side-by-side aligned table (나란히) ──────────────────────────────────────
 
-class _PanelColumn extends StatelessWidget {
-  final int order;
-  final String name;
-  final List<Verse> verses;
+class _AlignedTable extends StatelessWidget {
+  final List<String> ids;
+  final String Function(String) nameFor;
+  final BibleProvider bible;
   final double fontSize;
-  final ScrollController controller;
+  final ScrollController scrollController;
+  final Map<int, GlobalKey> verseKeys;
 
-  const _PanelColumn({
-    required this.order,
-    required this.name,
-    required this.verses,
+  const _AlignedTable({
+    required this.ids,
+    required this.nameFor,
+    required this.bible,
     required this.fontSize,
-    required this.controller,
+    required this.scrollController,
+    required this.verseKeys,
   });
 
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          width: double.infinity,
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-          color: Theme.of(context).colorScheme.surfaceContainerHighest,
-          child: Row(
-            children: [
-              _OrderBadge(order: order),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  name,
-                  style: const TextStyle(
-                      fontWeight: FontWeight.bold, fontSize: 12),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Expanded(
-          child: ListView.builder(
-            controller: controller,
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            itemCount: verses.length,
-            itemBuilder: (_, i) =>
-                _PanelVerseItem(verse: verses[i], fontSize: fontSize),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PanelVerseItem extends StatelessWidget {
-  final Verse verse;
-  final double fontSize;
-
-  const _PanelVerseItem({required this.verse, required this.fontSize});
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
+  Widget _buildVerseRow(BuildContext context, int vn,
+      Map<String, Map<int, String>> maps, ColorScheme scheme) {
+    final key = verseKeys.putIfAbsent(vn, () => GlobalKey());
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
+      key: key,
+      padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SizedBox(
             width: 28,
             child: Text(
-              '${verse.verse}',
+              '$vn',
               style: TextStyle(
                 fontSize: fontSize * 0.8,
                 fontWeight: FontWeight.bold,
@@ -264,75 +265,61 @@ class _PanelVerseItem extends StatelessWidget {
               ),
             ),
           ),
-          Expanded(
-            child: Text(
-              verse.text,
-              style: TextStyle(fontSize: fontSize, height: 1.6),
+          for (int i = 0; i < ids.length; i++) ...[
+            if (i > 0) const SizedBox(width: 4),
+            Expanded(
+              child: RichText(
+                text: TextSpan(children: [
+                  TextSpan(
+                    text: '[${nameFor(ids[i])}] ',
+                    style: TextStyle(
+                      color: _kLabelColors[i % _kLabelColors.length],
+                      fontWeight: FontWeight.bold,
+                      fontSize: fontSize * 0.8,
+                    ),
+                  ),
+                  TextSpan(
+                    text: maps[ids[i]]?[vn] ?? '',
+                    style: TextStyle(
+                      color: scheme.onSurface,
+                      fontSize: fontSize,
+                      height: 1.5,
+                    ),
+                  ),
+                ]),
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
   }
-}
-
-// ── Order badge ──────────────────────────────────────────────────────────────
-
-class _OrderBadge extends StatelessWidget {
-  final int order;
-  const _OrderBadge({required this.order});
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return CircleAvatar(
-      radius: 9,
-      backgroundColor: scheme.primary,
-      child: Text(
-        '$order',
-        style: TextStyle(
-          color: scheme.onPrimary,
-          fontSize: 11,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-}
-
-// ── Linked scroll group ──────────────────────────────────────────────────────
-
-class _LinkedScrollGroup {
-  final List<ScrollController> _controllers = [];
-  bool _syncing = false;
-
-  ScrollController create() {
-    final c = ScrollController();
-    c.addListener(() => _onScroll(c));
-    _controllers.add(c);
-    return c;
-  }
-
-  void _onScroll(ScrollController source) {
-    if (_syncing || !source.hasClients) return;
-    final maxSrc = source.position.maxScrollExtent;
-    if (maxSrc == 0) return;
-    _syncing = true;
-    final fraction = source.offset / maxSrc;
-    for (final c in _controllers) {
-      if (c != source && c.hasClients && c.position.maxScrollExtent > 0) {
-        final target = (fraction * c.position.maxScrollExtent)
-            .clamp(0.0, c.position.maxScrollExtent);
-        if ((c.offset - target).abs() > 1.0) c.jumpTo(target);
+    final maps = <String, Map<int, String>>{};
+    final verseNums = <int>{};
+    for (final id in ids) {
+      final m = <int, String>{};
+      for (final v in bible.versesFor(id)) {
+        m[v.verse] = v.text;
+        verseNums.add(v.verse);
       }
+      maps[id] = m;
     }
-    _syncing = false;
-  }
+    final sortedNums = verseNums.toList()..sort();
+    final scheme = Theme.of(context).colorScheme;
 
-  void dispose() {
-    for (final c in _controllers) {
-      c.dispose();
+    final rows = <Widget>[];
+    for (int r = 0; r < sortedNums.length; r++) {
+      if (r > 0) rows.add(const Divider(height: 1, indent: 32));
+      rows.add(_buildVerseRow(context, sortedNums[r], maps, scheme));
     }
-    _controllers.clear();
+
+    return SingleChildScrollView(
+      controller: scrollController,
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Column(children: rows),
+    );
   }
 }

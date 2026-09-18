@@ -67,10 +67,39 @@ class _SettingsBody extends StatelessWidget {
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Text(
-              '태초에 하나님이 천지를 창조하시니라. (창 1:1)',
-              style: TextStyle(fontSize: settings.fontSize, height: 1.6),
+            child: MediaQuery(
+              data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+              child: Text(
+                '태초에 하나님이 천지를 창조하시니라. (창 1:1)',
+                style: TextStyle(fontSize: settings.fontSize, height: 1.6),
+              ),
             ),
+          ),
+        ),
+        // ── 메뉴 글자 크기 ────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          child: Row(
+            children: [
+              Text(t.uiFontSize),
+              Expanded(
+                child: Slider(
+                  value: settings.uiScale,
+                  min: 0.9,
+                  max: 1.1,
+                  divisions: 4,
+                  label: '${(settings.uiScale * 100).round()}%',
+                  onChanged: settings.setUiScale,
+                ),
+              ),
+              SizedBox(
+                width: 40,
+                child: Text(
+                  '${(settings.uiScale * 100).round()}%',
+                  textAlign: TextAlign.center,
+                ),
+              ),
+            ],
           ),
         ),
         // ── 언어 ─────────────────────────────────────────────────────────
@@ -82,14 +111,16 @@ class _SettingsBody extends StatelessWidget {
           child: Column(
             children: [
               RadioListTile<AppLang>(
-                  title: Text(t.korean), value: AppLang.ko),
+                  title: Text(t.korean), value: AppLang.ko,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16)),
               RadioListTile<AppLang>(
-                  title: Text(t.english), value: AppLang.en),
+                  title: Text(t.english), value: AppLang.en,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16)),
             ],
           ),
         ),
         // ── 테마 ─────────────────────────────────────────────────────────
-        const Divider(),
+        const Divider(height: 8),
         _SectionHeader(t.theme),
         RadioGroup<ThemeMode>(
           groupValue: settings.themeMode,
@@ -97,52 +128,60 @@ class _SettingsBody extends StatelessWidget {
           child: Column(
             children: [
               RadioListTile<ThemeMode>(
-                  title: Text(t.themeSystem), value: ThemeMode.system),
+                  title: Text(t.themeSystem), value: ThemeMode.system,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16)),
               RadioListTile<ThemeMode>(
-                  title: Text(t.themeLight), value: ThemeMode.light),
+                  title: Text(t.themeLight), value: ThemeMode.light,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16)),
               RadioListTile<ThemeMode>(
-                  title: Text(t.themeDark), value: ThemeMode.dark),
+                  title: Text(t.themeDark), value: ThemeMode.dark,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16)),
             ],
           ),
         ),
         // ── 노트 ─────────────────────────────────────────────────────────
-        const Divider(),
+        const Divider(height: 8),
         _SectionHeader(t.noteSection),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           leading: const Icon(Icons.upload_file),
           title: Text(t.exportNotes),
           subtitle: const Text('CSV 파일로 저장'),
           onTap: () => _exportNotes(context),
         ),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           leading: const Icon(Icons.download),
           title: Text(t.importNotes),
           subtitle: const Text('CSV 파일에서 가져오기'),
           onTap: () => _importNotes(context),
         ),
         // ── 성경 목록 ─────────────────────────────────────────────────────
-        const Divider(),
+        const Divider(height: 8),
         _SectionHeader(t.bibleTranslations),
         ..._buildSourceList(context, settings, settings.bibles, SourceType.bible),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           leading: const Icon(Icons.add),
           title: Text(t.addBibleFile),
           onTap: () => _importFile(context, SourceType.bible),
         ),
         // ── 주석 목록 ─────────────────────────────────────────────────────
-        const Divider(),
+        const Divider(height: 8),
         _SectionHeader(t.commentarySection),
         ..._buildSourceList(context, settings, settings.commentaries, SourceType.commentary),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           leading: const Icon(Icons.add),
           title: Text(t.addCommentaryFile),
           onTap: () => _importFile(context, SourceType.commentary),
         ),
         // ── 찬송가 목록 ───────────────────────────────────────────────────
-        const Divider(),
+        const Divider(height: 8),
         _SectionHeader(t.hymnSection),
         ..._buildSourceList(context, settings, settings.hymns, SourceType.hymn),
         ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
           leading: const Icon(Icons.add),
           title: Text(t.addHymnFile),
           onTap: () => _importFile(context, SourceType.hymn),
@@ -154,16 +193,17 @@ class _SettingsBody extends StatelessWidget {
 
   Future<void> _exportNotes(BuildContext context) async {
     final notes = context.read<NoteProvider>();
-    final t = context.read<SettingsProvider>().t;
     try {
-      final path = await notes.exportCsv();
-      if (context.mounted) {
-        _showSnack(context, '${t.exportSuccess}: $path');
-      }
+      final bytes = await notes.buildCsvBytes();
+      final path = await FilePicker.platform.saveFile(
+        dialogTitle: '노트 내보내기',
+        fileName: 'bible_notes_export.csv',
+        bytes: bytes,
+      );
+      if (path == null) return;
+      if (context.mounted) _showSnack(context, '저장됨: $path');
     } catch (e) {
-      if (context.mounted) {
-        _showSnack(context, '오류: $e');
-      }
+      if (context.mounted) _showSnack(context, '오류: $e');
     }
   }
 
@@ -212,6 +252,7 @@ class _SettingsBody extends StatelessWidget {
     return sources.map((src) {
       final canDel = settings.canRemove(src);
       return ListTile(
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16),
         leading: Icon(
           _iconFor(type),
           color: src.isEnabled
@@ -351,11 +392,11 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Padding(
-        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 2),
         child: Text(
           title,
           style: TextStyle(
-            fontSize: 13,
+            fontSize: 15,
             fontWeight: FontWeight.bold,
             color: Theme.of(context).colorScheme.primary,
           ),

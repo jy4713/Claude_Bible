@@ -8,6 +8,7 @@ import '../../models/verse.dart';
 import '../../providers/bible_provider.dart';
 import '../../providers/note_provider.dart';
 import '../../providers/settings_provider.dart';
+import '../../repositories/bible_repository.dart';
 import 'bible_search_screen.dart';
 import '_book_selector_dialog.dart';
 import '_translation_selector.dart';
@@ -93,6 +94,51 @@ class _BibleScreenState extends State<BibleScreen> {
     }
   }
 
+  Future<void> _selectChapter(BibleProvider bible, List<SourceInfo> sources) async {
+    final notes = context.read<NoteProvider>();
+    final book  = bookInfoOf(bible.book);
+    final result = await showChapterSelector(
+      context,
+      book: book,
+      currentChapter: bible.chapter,
+      currentVerse: bible.verse,
+    );
+    if (result != null && mounted) {
+      final chapter = result['chapter']!;
+      final verse   = result['verse'] ?? 1;
+      await bible.navigate(sources, bible.book, chapter, verseIndex: verse - 1);
+      notes.loadForChapter(bible.book, chapter);
+    }
+  }
+
+  Future<void> _selectVerse(BibleProvider bible, List<SourceInfo> sources) async {
+    final notes    = context.read<NoteProvider>();
+    final settings = context.read<SettingsProvider>();
+    final book     = bookInfoOf(bible.book);
+    int verseCount = 176;
+    try {
+      final srcs = settings.enabledBibles;
+      if (srcs.isNotEmpty) {
+        verseCount = await BibleRepository.instance
+            .maxVerse(srcs.first, bible.book, bible.chapter);
+      }
+    } catch (_) {}
+    if (!mounted) return;
+    final result = await showVerseSelector(
+      context,
+      book: book,
+      chapter: bible.chapter,
+      currentVerse: bible.verse,
+      verseCount: verseCount,
+    );
+    if (result != null && mounted) {
+      final verse = result['verse'] ?? 1;
+      await bible.navigate(sources, bible.book, bible.chapter,
+          verseIndex: verse - 1);
+      notes.loadForChapter(bible.book, bible.chapter);
+    }
+  }
+
   // Single translation selector — only changes primaryId, never affects compareIds
   Future<void> _selectTranslation(List<SourceInfo> sources) async {
     await showModalBottomSheet(
@@ -132,55 +178,65 @@ class _BibleScreenState extends State<BibleScreen> {
       });
     }
 
-    final primarySrc = _srcById(sources, bible.primaryId);
-    final english = primarySrc?.isEnglish ?? false;
-    final bookLabel = english
-        ? '${bookInfo.korean} / ${bookInfo.english}'
-        : bookInfo.korean;
-    final verseLabel = bible.verse > 1 ? ':${bible.verse}' : '';
-    final titleText = '$bookLabel ${t.chapter(bible.chapter)}$verseLabel';
+    final primarySrc  = _srcById(sources, bible.primaryId);
+    final translName  = primarySrc?.name ?? bible.primaryId;
+    final bookLabel   = '${bookInfo.korean} / ${bookInfo.english}';
 
     return Scaffold(
       appBar: AppBar(
+        toolbarHeight: 62,
         titleSpacing: 4,
-        title: Row(
+        title: Padding(
+          padding: const EdgeInsets.only(top: 4),
+          child: Column(
           mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Flexible(
-              child: TextButton(
-                onPressed: () => _selectBook(bible, sources),
-                style: TextButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 8)),
-                child: Text(
-                  titleText,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context)
-                      .textTheme
-                      .titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
+            // Line 1: translation · book (Korean / English)
+            Row(
+              children: [
+                _NavChip(
+                  label: translName,
+                  onTap: () => _selectTranslation(sources),
                 ),
-              ),
+                const _NavSep(),
+                Flexible(
+                  child: _NavChip(
+                    label: bookLabel,
+                    onTap: () => _selectBook(bible, sources),
+                  ),
+                ),
+              ],
             ),
-            IconButton(
-              icon: const Icon(Icons.chevron_left),
-              tooltip: t.prevChapter,
-              onPressed: () => _prevChapter(bible, sources),
-            ),
-            IconButton(
-              icon: const Icon(Icons.chevron_right),
-              tooltip: t.nextChapter,
-              onPressed: () => _nextChapter(bible, sources),
+            // Line 2: chapter · verse  ◀ ▶
+            Row(
+              children: [
+                _NavChip(
+                  label: t.chapter(bible.chapter),
+                  onTap: () => _selectChapter(bible, sources),
+                ),
+                const _NavSep(),
+                _NavChip(
+                  label: t.verse(bible.verse),
+                  onTap: () => _selectVerse(bible, sources),
+                ),
+                const SizedBox(width: 4),
+                _SmallChevron(
+                  icon: Icons.chevron_left,
+                  tooltip: t.prevChapter,
+                  onPressed: () => _prevChapter(bible, sources),
+                ),
+                _SmallChevron(
+                  icon: Icons.chevron_right,
+                  tooltip: t.nextChapter,
+                  onPressed: () => _nextChapter(bible, sources),
+                ),
+              ],
             ),
           ],
         ),
+        ),
         actions: [
-          // Single translation button
-          IconButton(
-            icon: const Icon(Icons.menu_book),
-            tooltip: t.translationSettings,
-            onPressed: () => _selectTranslation(sources),
-          ),
-          // Search
           IconButton(
             icon: const Icon(Icons.search),
             tooltip: t.searchBible,
@@ -204,7 +260,10 @@ class _BibleScreenState extends State<BibleScreen> {
           ),
         ],
       ),
-      body: bible.loading
+      body: MediaQuery(
+        // Bible content uses explicit fontSize from settings — don't double-scale.
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.noScaling),
+        child: bible.loading
           ? const Center(child: CircularProgressIndicator())
           : bible.error != null
               ? _Error(message: bible.error!)
@@ -221,6 +280,7 @@ class _BibleScreenState extends State<BibleScreen> {
                         .loadForChapter(book, chapter);
                   },
                 ),
+      ),
     );
   }
 }
@@ -256,34 +316,52 @@ class _SingleViewState extends State<_SingleView> {
   bool _selectionMode = false;
   int? _lastBook;
   int? _lastChapter;
+  int  _lastVerseIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _lastBook    = widget.bible.book;
-    _lastChapter = widget.bible.chapter;
+    _lastBook        = widget.bible.book;
+    _lastChapter     = widget.bible.chapter;
+    _lastVerseIndex  = widget.bible.verseIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
   }
 
   @override
   void didUpdateWidget(covariant _SingleView old) {
     super.didUpdateWidget(old);
-    if (widget.bible.book != _lastBook ||
-        widget.bible.chapter != _lastChapter) {
-      _lastBook    = widget.bible.book;
-      _lastChapter = widget.bible.chapter;
+    final bookOrChapterChanged =
+        widget.bible.book != _lastBook || widget.bible.chapter != _lastChapter;
+
+    if (bookOrChapterChanged) {
+      _lastBook        = widget.bible.book;
+      _lastChapter     = widget.bible.chapter;
+      _lastVerseIndex  = widget.bible.verseIndex;
       _verseKeys.clear();
       setState(() {
         _selectedVerses = {};
         _selectionMode = false;
       });
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+    } else if (widget.bible.verseIndex != _lastVerseIndex) {
+      _lastVerseIndex = widget.bible.verseIndex;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
     }
   }
 
   void _scrollToVerse() {
     final idx = widget.bible.verseIndex;
-    if (idx <= 0) return;
+    if (idx <= 0) {
+      // Verse 1: scroll to top
+      if (widget.scrollController.hasClients) {
+        widget.scrollController.animateTo(
+          0,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+      return;
+    }
     final verses = widget.bible.versesFor(widget.sourceId);
     if (idx >= verses.length) return;
     final vNum = verses[idx].verse;
@@ -448,28 +526,23 @@ class _SingleViewState extends State<_SingleView> {
 
     return Stack(
       children: [
-        ListView.builder(
+        ListView(
           controller: widget.scrollController,
           padding: EdgeInsets.fromLTRB(
               16, 8, 16, _selectionMode ? 72 : 8),
-          itemCount: verses.length,
-          itemBuilder: (_, i) {
-            final v = verses[i];
-            final key =
-                _verseKeys.putIfAbsent(v.verse, () => GlobalKey());
-            final hasNote = widget.notes.hasNote(v.verse);
-            final isSelected = _selectedVerses.contains(v.verse);
-            return _VerseItem(
-              key: key,
-              verse: v,
-              fontSize: widget.fontSize,
-              hasNote: hasNote,
-              isSelected: isSelected,
-              selectionMode: _selectionMode,
-              onTap: () => _onVerseTap(v),
-              onLongPress: () => _onVerseLongPress(v),
-            );
-          },
+          children: [
+            for (final v in verses)
+              _VerseItem(
+                key: _verseKeys.putIfAbsent(v.verse, () => GlobalKey()),
+                verse: v,
+                fontSize: widget.fontSize,
+                hasNote: widget.notes.hasNote(v.verse),
+                isSelected: _selectedVerses.contains(v.verse),
+                selectionMode: _selectionMode,
+                onTap: () => _onVerseTap(v),
+                onLongPress: () => _onVerseLongPress(v),
+              ),
+          ],
         ),
         // Selection mode action bar
         if (_selectionMode)
@@ -644,6 +717,60 @@ class _NoteViewDialog extends StatelessWidget {
       ],
     );
   }
+}
+
+// ── AppBar nav chip ──────────────────────────────────────────────────────────
+
+class _NavChip extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _NavChip({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+        child: Text(
+          label,
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+        ),
+      ),
+    );
+  }
+}
+
+class _NavSep extends StatelessWidget {
+  const _NavSep();
+  @override
+  Widget build(BuildContext context) => Text(
+        ' / ',
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.outline,
+          fontSize: 12,
+        ),
+      );
+}
+
+class _SmallChevron extends StatelessWidget {
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+  const _SmallChevron({required this.icon, required this.tooltip, required this.onPressed});
+
+  @override
+  Widget build(BuildContext context) => IconButton(
+        icon: Icon(icon),
+        iconSize: 18,
+        padding: EdgeInsets.zero,
+        constraints: const BoxConstraints(minWidth: 28, minHeight: 20),
+        tooltip: tooltip,
+        onPressed: onPressed,
+      );
 }
 
 // ── Error widget ─────────────────────────────────────────────────────────────

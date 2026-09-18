@@ -141,10 +141,10 @@ class _CompareScreenState extends State<CompareScreen> {
             tooltip: '역본 선택',
             onPressed: () => _selectTranslations(sources),
           ),
-          // 가로(나란히) ↔ 세로(위아래) 토글
+          // 세로(stacked) ↔ 나란히(side-by-side) 토글
           IconButton(
-            icon: Icon(isHorizontal ? Icons.table_rows : Icons.view_column),
-            tooltip: isHorizontal ? '위아래 보기' : '나란히 보기',
+            icon: Icon(isHorizontal ? Icons.view_agenda : Icons.view_column),
+            tooltip: isHorizontal ? '세로 보기' : '나란히 보기',
             onPressed: () => bible.setCompareAxis(
                 isHorizontal ? Axis.vertical : Axis.horizontal),
           ),

@@ -28,7 +28,7 @@ class BibleProvider with ChangeNotifier {
   List<String> _compareIds = ['개역개정'];
 
   bool _compareMode = false;
-  Axis _compareAxis = Axis.horizontal;
+  Axis _compareAxis = Axis.vertical;
 
   final Map<String, List<Verse>> _verses = {};
   bool _loading = false;

@@ -18,6 +18,12 @@ class BibleApp extends StatelessWidget {
       theme:      AppTheme.light(),
       darkTheme:  AppTheme.dark(),
       themeMode:  settings.themeMode,
+      builder: (ctx, child) => MediaQuery(
+        data: MediaQuery.of(ctx).copyWith(
+          textScaler: TextScaler.linear(settings.uiScale),
+        ),
+        child: child!,
+      ),
       home: const HomeScreen(),
     );
   }
