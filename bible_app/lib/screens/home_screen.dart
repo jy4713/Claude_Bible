@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import '../providers/bible_provider.dart';
 import '../providers/settings_provider.dart';
 import 'bible/bible_screen.dart';
+import 'bible/compare_screen.dart';
 import 'commentary/commentary_screen.dart';
 import 'hymn/hymn_list_screen.dart';
 import 'settings/settings_screen.dart';
@@ -17,14 +19,16 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> {
   int _index = 0;
 
-  static const _icons  = [
+  static const _icons = [
     Icons.menu_book_outlined,
+    Icons.compare_arrows_outlined,
     Icons.music_note_outlined,
     Icons.comment_outlined,
     Icons.settings_outlined,
   ];
   static const _selectedIcons = [
     Icons.menu_book,
+    Icons.compare_arrows,
     Icons.music_note,
     Icons.comment,
     Icons.settings,
@@ -38,6 +42,7 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _screens = [
       const BibleScreen(),
+      const CompareScreen(),
       const HymnListScreen(),
       CommentaryScreen(key: _commentaryKey),
       const SettingsScreen(),
@@ -45,9 +50,23 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onSelect(int i) {
+    final prev = _index;
     setState(() => _index = i);
-    // When entering the commentary tab, jump to the Bible's current location.
-    if (i == 2) {
+
+    final bible = context.read<BibleProvider>();
+    final sources = context.read<SettingsProvider>().enabledBibles;
+
+    // 역본대조 탭 진입 시 compare mode 활성화
+    if (i == 1 && !bible.compareMode) {
+      bible.toggleCompare(sources);
+    }
+    // 역본대조 탭 이탈 시 compare mode 비활성화 (성경 탭은 항상 single view)
+    if (prev == 1 && i != 1 && bible.compareMode) {
+      bible.toggleCompare(sources);
+    }
+
+    // 주석 탭 진입 시 현재 성경 위치로 동기화
+    if (i == 3) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _commentaryKey.currentState?.syncToBible();
       });
@@ -57,7 +76,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.watch<SettingsProvider>().t;
-    final labels = [t.bible, t.hymns, t.commentary, t.settings];
+    final labels = [t.bible, '역본대조', t.hymns, t.commentary, t.settings];
 
     return Scaffold(
       body: IndexedStack(

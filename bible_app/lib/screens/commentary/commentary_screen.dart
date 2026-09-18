@@ -251,34 +251,40 @@ class CommentaryScreenState extends State<CommentaryScreen> {
                             Theme.of(context).colorScheme.outline),
                   ),
                 )
-              : ListView.separated(
+              : SingleChildScrollView(
                   padding: const EdgeInsets.all(16),
-                  itemCount: _entries.length,
-                  separatorBuilder: (_, __) => const Divider(),
-                  itemBuilder: (_, i) {
-                    final e = _entries[i];
-                    final key = _entryKeys.putIfAbsent(
-                        e.verse, () => GlobalKey());
-                    return Column(
-                      key: key,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${e.verse}${settings.t.isEn ? '' : '절'}',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Theme.of(context)
-                                .colorScheme
-                                .primary,
-                            fontSize: fontSize * 0.9,
-                          ),
-                        ),
-                        const SizedBox(height: 4),
-                        HtmlContent(
-                            html: e.html, fontSize: fontSize * 0.9),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (int i = 0; i < _entries.length; i++) ...[
+                        Builder(builder: (ctx) {
+                          final e = _entries[i];
+                          final key = _entryKeys.putIfAbsent(
+                              e.verse, () => GlobalKey());
+                          return Column(
+                            key: key,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${e.verse}${settings.t.isEn ? '' : '절'}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .primary,
+                                  fontSize: fontSize * 0.9,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              HtmlContent(
+                                  html: e.html, fontSize: fontSize * 0.9),
+                            ],
+                          );
+                        }),
+                        if (i < _entries.length - 1) const Divider(),
                       ],
-                    );
-                  },
+                    ],
+                  ),
                 ),
     );
   }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../../constants/book_names.dart';
 import '../../providers/settings_provider.dart';
+import '../../repositories/bible_repository.dart';
 
 /// Dialog that lets the user pick: OT/NT → Book → Chapter → Verse.
 /// Returns {'book': int, 'chapter': int, 'verse': int}.
@@ -118,6 +119,18 @@ class _ChapterDialog extends StatelessWidget {
     required this.currentVerse,
   });
 
+  Future<int> _getVerseCount(BuildContext context, int chapter) async {
+    final settings = context.read<SettingsProvider>();
+    final sources = settings.enabledBibles;
+    if (sources.isEmpty) return 176;
+    try {
+      return await BibleRepository.instance
+          .maxVerse(sources.first, book.number, chapter);
+    } catch (_) {
+      return 176;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final maxH = MediaQuery.of(context).size.height * 0.65;
@@ -125,7 +138,6 @@ class _ChapterDialog extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxH),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
@@ -134,7 +146,7 @@ class _ChapterDialog extends StatelessWidget {
                       fontWeight: FontWeight.bold, fontSize: 16)),
             ),
             const Divider(height: 0),
-            Flexible(
+            Expanded(
               child: SingleChildScrollView(
                 child: GridView.builder(
                   shrinkWrap: true,
@@ -153,6 +165,9 @@ class _ChapterDialog extends StatelessWidget {
                     final selected = ch == currentChapter;
                     return InkWell(
                       onTap: () async {
+                        final verseCount =
+                            await _getVerseCount(context, ch);
+                        if (!context.mounted) return;
                         final result = await showDialog<Map<String, int>>(
                           context: context,
                           builder: (_) => _VerseDialog(
@@ -160,6 +175,7 @@ class _ChapterDialog extends StatelessWidget {
                             chapter: ch,
                             currentVerse:
                                 ch == currentChapter ? currentVerse : 1,
+                            verseCount: verseCount,
                           ),
                         );
                         if (result != null && context.mounted) {
@@ -206,14 +222,14 @@ class _VerseDialog extends StatelessWidget {
   final BookInfo book;
   final int chapter;
   final int currentVerse;
+  final int verseCount;
 
   const _VerseDialog({
     required this.book,
     required this.chapter,
     required this.currentVerse,
+    required this.verseCount,
   });
-
-  static const int _maxVerses = 176; // Psalm 119 has most (176 verses)
 
   @override
   Widget build(BuildContext context) {
@@ -240,12 +256,12 @@ class _VerseDialog extends StatelessWidget {
               ),
             ),
             const Divider(height: 0),
-            // "처음 절로" quick button
             ListTile(
               leading: const Icon(Icons.first_page),
               title: const Text('장 처음으로 이동'),
               dense: true,
-              onTap: () => Navigator.pop(context, {'chapter': chapter, 'verse': 1}),
+              onTap: () =>
+                  Navigator.pop(context, {'chapter': chapter, 'verse': 1}),
             ),
             const Divider(height: 0),
             Flexible(
@@ -261,7 +277,7 @@ class _VerseDialog extends StatelessWidget {
                     crossAxisSpacing: 6,
                     childAspectRatio: 1.1,
                   ),
-                  itemCount: _maxVerses,
+                  itemCount: verseCount,
                   itemBuilder: (_, i) {
                     final v = i + 1;
                     final selected = v == currentVerse;
