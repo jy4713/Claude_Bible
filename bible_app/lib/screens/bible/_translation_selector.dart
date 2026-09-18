@@ -26,24 +26,19 @@ class TranslationSelector extends StatefulWidget {
 class _TranslationSelectorState extends State<TranslationSelector> {
   void _onTap(
       BibleProvider bible, List<String> selected, String id) {
-    final compare = widget.compareMode;
-    final current = List<String>.from(selected);
-    if (compare) {
+    if (widget.compareMode) {
+      final current = List<String>.from(selected);
       if (current.contains(id)) {
         if (current.length > 1) current.remove(id);
       } else {
         if (current.length >= BibleProvider.maxCompare) return;
         current.add(id);
       }
+      bible.setSelectedIds(current, widget.allSources);
     } else {
-      current
-        ..clear()
-        ..add(id);
-    }
-    bible.setSelectedIds(current, widget.allSources);
-    // In single mode, close the sheet after selecting
-    if (!compare && Navigator.canPop(context)) {
-      Navigator.pop(context);
+      // Single mode: only update the primary (single-view) translation
+      bible.setSingleId(id, widget.allSources);
+      if (Navigator.canPop(context)) Navigator.pop(context);
     }
   }
 
@@ -51,8 +46,11 @@ class _TranslationSelectorState extends State<TranslationSelector> {
   Widget build(BuildContext context) {
     return Consumer2<BibleProvider, SettingsProvider>(
       builder: (ctx, bible, settings, _) {
-        final t       = settings.t;
-        final selected = bible.selectedIds;
+        final t = settings.t;
+        // In single mode show [primaryId]; in compare mode show compareIds
+        final selected = widget.compareMode
+            ? bible.selectedIds
+            : [bible.primaryId];
 
         return DraggableScrollableSheet(
           expand: false,

@@ -238,7 +238,6 @@ class _VerseDialog extends StatelessWidget {
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: maxH),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
           children: [
             Padding(
               padding: const EdgeInsets.all(16),
@@ -264,7 +263,7 @@ class _VerseDialog extends StatelessWidget {
                   Navigator.pop(context, {'chapter': chapter, 'verse': 1}),
             ),
             const Divider(height: 0),
-            Flexible(
+            Expanded(
               child: SingleChildScrollView(
                 child: GridView.builder(
                   shrinkWrap: true,

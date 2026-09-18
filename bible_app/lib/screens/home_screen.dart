@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '../providers/bible_provider.dart';
 import '../providers/settings_provider.dart';
 import 'bible/bible_screen.dart';
 import 'bible/compare_screen.dart';
@@ -50,20 +49,7 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   void _onSelect(int i) {
-    final prev = _index;
     setState(() => _index = i);
-
-    final bible = context.read<BibleProvider>();
-    final sources = context.read<SettingsProvider>().enabledBibles;
-
-    // 역본대조 탭 진입 시 compare mode 활성화
-    if (i == 1 && !bible.compareMode) {
-      bible.toggleCompare(sources);
-    }
-    // 역본대조 탭 이탈 시 compare mode 비활성화 (성경 탭은 항상 single view)
-    if (prev == 1 && i != 1 && bible.compareMode) {
-      bible.toggleCompare(sources);
-    }
 
     // 주석 탭 진입 시 현재 성경 위치로 동기화
     if (i == 3) {

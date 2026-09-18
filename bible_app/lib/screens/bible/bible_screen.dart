@@ -93,12 +93,8 @@ class _BibleScreenState extends State<BibleScreen> {
     }
   }
 
-  // Single translation selector
+  // Single translation selector — only changes primaryId, never affects compareIds
   Future<void> _selectTranslation(List<SourceInfo> sources) async {
-    final bible = context.read<BibleProvider>();
-    if (bible.compareMode) {
-      bible.toggleCompare(sources);
-    }
     await showModalBottomSheet(
       context: context,
       isScrollControlled: true,
@@ -132,7 +128,7 @@ class _BibleScreenState extends State<BibleScreen> {
     if (sources.isNotEmpty &&
         !sources.any((s) => s.id == bible.primaryId)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        bible.setSelectedIds([sources.first.id], sources);
+        bible.setSingleId(sources.first.id, sources);
       });
     }
 

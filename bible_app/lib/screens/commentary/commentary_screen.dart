@@ -67,16 +67,17 @@ class CommentaryScreenState extends State<CommentaryScreen> {
 
   void _scrollToVerse(int verse) {
     if (_entries.isEmpty) return;
-    // Find the entry with verse <= target, closest to target
-    int target = verse;
-    // Find smallest verse >= target in entries, or largest <= target
+    // Find the last entry whose verse number is <= target (entries are sorted asc).
+    // This gives the commentary section that covers the target verse.
     CommentaryEntry? best;
     for (final e in _entries) {
-      if (e.verse <= target) best = e;
-      if (e.verse >= target) { best = e; break; }
+      if (e.verse <= verse) {
+        best = e;
+      } else {
+        break; // entries are ascending; first entry past target, stop
+      }
     }
-    if (best == null && _entries.isNotEmpty) best = _entries.first;
-    if (best == null) return;
+    best ??= _entries.first;
 
     final key = _entryKeys[best.verse];
     if (key?.currentContext != null) {

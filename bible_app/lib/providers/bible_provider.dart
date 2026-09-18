@@ -6,21 +6,27 @@ import '../models/verse.dart';
 import '../repositories/bible_repository.dart';
 
 class BibleProvider with ChangeNotifier {
-  static const _kBook       = 'currentBook';
-  static const _kChapter    = 'currentChapter';
-  static const _kVerse      = 'currentVerse';
-  static const _kSelected   = 'selectedIds';
-  static const _kCompare    = 'compareMode';
+  static const _kBook        = 'currentBook';
+  static const _kChapter     = 'currentChapter';
+  static const _kVerse       = 'currentVerse';
+  static const _kSingleId    = 'singleId';
+  static const _kCompareIds  = 'compareIds';
+  static const _kCompareMode = 'compareMode';
 
   /// Maximum number of translations that can be compared at once.
   static const int maxCompare = 4;
 
   int _book       = 1;
   int _chapter    = 1;
-  int _verse      = 1; // 1-based current verse
-  int _verseIndex = 0; // 0-based index for scroll-to
+  int _verse      = 1;
+  int _verseIndex = 0;
 
-  List<String> _selectedIds = ['개역개정'];
+  // Single-view translation (Bible tab)
+  String _singleId = '개역개정';
+
+  // Compare-view translations (역본대조 tab) — persisted separately
+  List<String> _compareIds = ['개역개정'];
+
   bool _compareMode = false;
   Axis _compareAxis = Axis.horizontal;
 
@@ -33,7 +39,12 @@ class BibleProvider with ChangeNotifier {
   int get verse      => _verse;
   int get verseIndex => _verseIndex;
 
-  List<String> get selectedIds => _selectedIds;
+  /// The primary (single-view) translation ID.
+  String get primaryId => _singleId;
+
+  /// The compare-mode translation IDs (used by TranslationSelector in compare mode).
+  List<String> get selectedIds => _compareIds;
+
   bool get compareMode => _compareMode;
   Axis get compareAxis => _compareAxis;
   bool get loading => _loading;
@@ -41,31 +52,27 @@ class BibleProvider with ChangeNotifier {
 
   List<Verse> versesFor(String id) => _verses[id] ?? [];
 
-  String get primaryId =>
-      _selectedIds.isNotEmpty ? _selectedIds.first : '개역개정';
-
   List<String> get visibleIds =>
-      _compareMode ? _selectedIds : [primaryId];
+      _compareMode ? _compareIds : [_singleId];
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
-    _book    = prefs.getInt(_kBook)    ?? 1;
-    _chapter = prefs.getInt(_kChapter) ?? 1;
-    _verse   = prefs.getInt(_kVerse)   ?? 1;
+    _book       = prefs.getInt(_kBook)    ?? 1;
+    _chapter    = prefs.getInt(_kChapter) ?? 1;
+    _verse      = prefs.getInt(_kVerse)   ?? 1;
     _verseIndex = _verse - 1;
-    _compareMode = prefs.getBool(_kCompare) ?? false;
-    final saved = prefs.getStringList(_kSelected);
-    if (saved != null && saved.isNotEmpty) _selectedIds = saved;
-    if (!_compareMode && _selectedIds.length > 1) {
-      _selectedIds = [_selectedIds.first];
-    }
+    _compareMode = prefs.getBool(_kCompareMode) ?? false;
+    _singleId    = prefs.getString(_kSingleId) ?? '개역개정';
+    final saved  = prefs.getStringList(_kCompareIds);
+    if (saved != null && saved.isNotEmpty) _compareIds = saved;
     notifyListeners();
   }
 
-  Future<void> _persistSelection() async {
+  Future<void> _persist() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_kSelected, _selectedIds);
-    await prefs.setBool(_kCompare, _compareMode);
+    await prefs.setString(_kSingleId, _singleId);
+    await prefs.setStringList(_kCompareIds, _compareIds);
+    await prefs.setBool(_kCompareMode, _compareMode);
   }
 
   Future<void> navigate(
@@ -111,27 +118,39 @@ class BibleProvider with ChangeNotifier {
     }
   }
 
+  /// Changes the single-view translation (Bible tab).
+  /// Does NOT affect compareIds.
+  void setSingleId(String id, List<SourceInfo> sources) {
+    _singleId = id;
+    _persist();
+    if (!_compareMode) {
+      _loadVerses(sources);
+    } else {
+      notifyListeners();
+    }
+  }
+
+  /// Changes the compare-view translations (역본대조 tab).
+  /// Does NOT affect singleId.
   void setSelectedIds(List<String> ids, List<SourceInfo> sources) {
     var next = ids.where((id) => id.isNotEmpty).toList();
     if (next.isEmpty) {
       next = [sources.isNotEmpty ? sources.first.id : '개역개정'];
     }
+    if (next.length > maxCompare) next = next.sublist(0, maxCompare);
+    _compareIds = next;
+    _persist();
     if (_compareMode) {
-      if (next.length > maxCompare) next = next.sublist(0, maxCompare);
+      _loadVerses(sources);
     } else {
-      next = [next.first];
+      notifyListeners();
     }
-    _selectedIds = next;
-    _persistSelection();
-    _loadVerses(sources);
   }
 
+  /// Toggles compare mode. Does NOT clear compareIds.
   void toggleCompare(List<SourceInfo> sources) {
     _compareMode = !_compareMode;
-    if (!_compareMode && _selectedIds.length > 1) {
-      _selectedIds = [_selectedIds.first];
-    }
-    _persistSelection();
+    _persist();
     _loadVerses(sources);
   }
 
