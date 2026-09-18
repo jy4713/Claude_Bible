@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -169,6 +171,14 @@ class SettingsProvider with ChangeNotifier {
     }
     notifyListeners();
     await _persist();
+    // Delete the copied file from documents/bible_db/ for user-imported sources.
+    // Built-ins live in APK assets (no real file to delete). Original file untouched.
+    if (!source.isBuiltIn && source.docPath.isNotEmpty) {
+      try {
+        final f = File(source.docPath);
+        if (await f.exists()) await f.delete();
+      } catch (_) {}
+    }
   }
 
   Future<void> _persist() async {

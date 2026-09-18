@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -317,6 +319,10 @@ class _SingleViewState extends State<_SingleView> {
   int? _lastBook;
   int? _lastChapter;
   int  _lastVerseIndex = 0;
+  bool _pendingScroll = false;
+  bool _wasLoading = false;
+  bool _updatingFromScroll = false;
+  Timer? _scrollDebounce;
 
   @override
   void initState() {
@@ -324,12 +330,54 @@ class _SingleViewState extends State<_SingleView> {
     _lastBook        = widget.bible.book;
     _lastChapter     = widget.bible.chapter;
     _lastVerseIndex  = widget.bible.verseIndex;
+    _wasLoading      = widget.bible.loading;
+    widget.scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+  }
+
+  @override
+  void dispose() {
+    widget.scrollController.removeListener(_onScroll);
+    _scrollDebounce?.cancel();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    _scrollDebounce?.cancel();
+    _scrollDebounce = Timer(const Duration(milliseconds: 300), _updateReadingVerse);
+  }
+
+  void _updateReadingVerse() {
+    if (!mounted || widget.bible.loading) return;
+    final verses = widget.bible.versesFor(widget.sourceId);
+    if (verses.isEmpty) return;
+
+    for (final v in verses) {
+      final key = _verseKeys[v.verse];
+      if (key?.currentContext == null) continue;
+      final box = key!.currentContext!.findRenderObject() as RenderBox?;
+      if (box == null || !box.hasSize) continue;
+      final dy = box.localToGlobal(Offset.zero).dy;
+      if (dy >= 0) {
+        if (v.verse != widget.bible.verse) {
+          _updatingFromScroll = true;
+          widget.bible.setScrollPosition(v.verse);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (mounted) _updatingFromScroll = false;
+          });
+        }
+        break;
+      }
+    }
   }
 
   @override
   void didUpdateWidget(covariant _SingleView old) {
     super.didUpdateWidget(old);
+    final nowLoading = widget.bible.loading;
+    final justFinishedLoading = _wasLoading && !nowLoading;
+    _wasLoading = nowLoading;
+
     final bookOrChapterChanged =
         widget.bible.book != _lastBook || widget.bible.chapter != _lastChapter;
 
@@ -342,9 +390,28 @@ class _SingleViewState extends State<_SingleView> {
         _selectedVerses = {};
         _selectionMode = false;
       });
-      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
-    } else if (widget.bible.verseIndex != _lastVerseIndex) {
+      if (!nowLoading) {
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+      } else {
+        _pendingScroll = true;
+      }
+      return;
+    }
+
+    if (widget.bible.verseIndex != _lastVerseIndex) {
       _lastVerseIndex = widget.bible.verseIndex;
+      if (!_updatingFromScroll) {
+        if (!nowLoading) {
+          _pendingScroll = false;
+          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+        } else {
+          _pendingScroll = true;
+        }
+      }
+    }
+
+    if (justFinishedLoading && _pendingScroll) {
+      _pendingScroll = false;
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
     }
   }

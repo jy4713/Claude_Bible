@@ -123,6 +123,17 @@ class BibleProvider with ChangeNotifier {
     }
   }
 
+  /// Updates verse display from scroll position — no data reload, no scroll-back.
+  void setScrollPosition(int verseNumber) {
+    if (_verse == verseNumber) return;
+    _verse = verseNumber;
+    _verseIndex = verseNumber - 1;
+    SharedPreferences.getInstance().then((prefs) {
+      prefs.setInt(_kVerse, _verse);
+    });
+    notifyListeners();
+  }
+
   /// Changes the single-view translation (Bible tab).
   /// Does NOT affect compareIds.
   void setSingleId(String id, List<SourceInfo> sources) {
