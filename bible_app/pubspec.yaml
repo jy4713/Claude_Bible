@@ -1,0 +1,49 @@
+name: bible_app
+description: 성경앱 - 성경 / 찬송가 / 주석 뷰어
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: '>=3.3.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  sqflite: ^2.3.3+1
+  sqflite_common_ffi: ^2.3.3
+  sqflite_common_ffi_web: ^1.2.0
+  path_provider: ^2.1.4
+  path: ^1.9.0
+  provider: ^6.1.2
+  archive: ^3.6.1
+  file_picker: ^8.1.2
+  shared_preferences: ^2.3.2
+  html: ^0.15.4
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/bible/개역개정.bdb
+    - assets/bible/개역한글.bdb
+    - assets/bible/KJV1769.bdb
+    - assets/bible/NIV.bdb
+    - assets/bible/WEB.bdb
+    - assets/bible/NET.bdb
+    - assets/bible/킹흠정역.bdb
+    - assets/bible/바른성경.bdb
+    - assets/bible/새번역.bdb
+    - assets/bible/쉬운성경.bdb
+    - assets/bible/현대인의성경.bdb
+    - assets/bible/현대어성경.bdb
+    - assets/commentary/만나주석.cdb
+    - assets/hymn/새찬송가.hdb
+    - assets/hymn/새찬송가.cmp
+    - assets/dic/HebGrkKo.dct
+    - assets/dic/HebGrkEn.dct

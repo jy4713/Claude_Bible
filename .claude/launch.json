@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "bible_app_web",
+      "runtimeExecutable": "C:\\temp\\Workspace\\Bible_App\\serve_web.bat",
+      "runtimeArgs": [],
+      "port": 8787,
+      "url": "http://localhost:8787"
+    }
+  ]
+}

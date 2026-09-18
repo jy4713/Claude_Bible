@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(dir \"C:\\\\temp\\\\Workspace\\\\Bible_App\\\\data\")",
+      "Bash(python3 -c ' *)",
+      "Bash(flutter pub *)",
+      "Bash(flutter analyze *)",
+      "Bash(flutter build *)",
+      "Bash(flutter config *)",
+      "Bash(cat settings.gradle.kts)",
+      "Bash(cat gradle.properties)",
+      "Bash(cat gradle/wrapper/gradle-wrapper.properties)",
+      "Bash(cat app/build.gradle.kts)"
+    ]
+  }
+}
