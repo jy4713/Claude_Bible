@@ -52,9 +52,14 @@ class SettingsProvider with ChangeNotifier {
     final biblesJson = prefs.getString(_kBibles);
     if (biblesJson != null && biblesJson.isNotEmpty) {
       final saved = SourceInfo.decodeList(biblesJson);
+      final validBuiltInIds = {for (final b in kBuiltInBibles) b.id};
       final savedIds = {for (final s in saved) s.id};
       _bibles = [
-        ...saved,
+        // Keep user-added bibles (isBuiltIn=false) always.
+        // Keep built-in bibles only if they still ship with this APK version.
+        for (final s in saved)
+          if (!s.isBuiltIn || validBuiltInIds.contains(s.id)) s,
+        // Add any new built-ins not yet in the saved list.
         for (final b in kBuiltInBibles) if (!savedIds.contains(b.id)) b,
       ];
     } else {

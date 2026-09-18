@@ -318,19 +318,20 @@ class _SingleViewState extends State<_SingleView> {
   bool _selectionMode = false;
   int? _lastBook;
   int? _lastChapter;
-  int  _lastVerseIndex = 0;
+  // Track navVerseIndex (Kimi: scrollIndex) — only navigate() updates this,
+  // so scroll-tracking never suppresses a real navigation scroll.
+  int  _lastNavVerseIndex = 0;
   bool _pendingScroll = false;
   bool _wasLoading = false;
-  bool _updatingFromScroll = false;
   Timer? _scrollDebounce;
 
   @override
   void initState() {
     super.initState();
-    _lastBook        = widget.bible.book;
-    _lastChapter     = widget.bible.chapter;
-    _lastVerseIndex  = widget.bible.verseIndex;
-    _wasLoading      = widget.bible.loading;
+    _lastBook           = widget.bible.book;
+    _lastChapter        = widget.bible.chapter;
+    _lastNavVerseIndex  = widget.bible.navVerseIndex;
+    _wasLoading         = widget.bible.loading;
     widget.scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
   }
@@ -347,6 +348,9 @@ class _SingleViewState extends State<_SingleView> {
     _scrollDebounce = Timer(const Duration(milliseconds: 300), _updateReadingVerse);
   }
 
+  // Updates the AppBar verse display from scroll position.
+  // Uses setScrollPosition() which does NOT change navVerseIndex,
+  // so didUpdateWidget will NOT trigger a scroll-back.
   void _updateReadingVerse() {
     if (!mounted || widget.bible.loading) return;
     final verses = widget.bible.versesFor(widget.sourceId);
@@ -357,14 +361,9 @@ class _SingleViewState extends State<_SingleView> {
       if (key?.currentContext == null) continue;
       final box = key!.currentContext!.findRenderObject() as RenderBox?;
       if (box == null || !box.hasSize) continue;
-      final dy = box.localToGlobal(Offset.zero).dy;
-      if (dy >= 0) {
+      if (box.localToGlobal(Offset.zero).dy >= 0) {
         if (v.verse != widget.bible.verse) {
-          _updatingFromScroll = true;
           widget.bible.setScrollPosition(v.verse);
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (mounted) _updatingFromScroll = false;
-          });
         }
         break;
       }
@@ -382,9 +381,9 @@ class _SingleViewState extends State<_SingleView> {
         widget.bible.book != _lastBook || widget.bible.chapter != _lastChapter;
 
     if (bookOrChapterChanged) {
-      _lastBook        = widget.bible.book;
-      _lastChapter     = widget.bible.chapter;
-      _lastVerseIndex  = widget.bible.verseIndex;
+      _lastBook          = widget.bible.book;
+      _lastChapter       = widget.bible.chapter;
+      _lastNavVerseIndex = widget.bible.navVerseIndex;
       _verseKeys.clear();
       setState(() {
         _selectedVerses = {};
@@ -398,15 +397,15 @@ class _SingleViewState extends State<_SingleView> {
       return;
     }
 
-    if (widget.bible.verseIndex != _lastVerseIndex) {
-      _lastVerseIndex = widget.bible.verseIndex;
-      if (!_updatingFromScroll) {
-        if (!nowLoading) {
-          _pendingScroll = false;
-          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
-        } else {
-          _pendingScroll = true;
-        }
+    // Only react to navVerseIndex changes (explicit navigation).
+    // setScrollPosition() changes verseIndex but NOT navVerseIndex → no scroll-back.
+    if (widget.bible.navVerseIndex != _lastNavVerseIndex) {
+      _lastNavVerseIndex = widget.bible.navVerseIndex;
+      if (!nowLoading) {
+        _pendingScroll = false;
+        WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
+      } else {
+        _pendingScroll = true;
       }
     }
 
@@ -417,13 +416,14 @@ class _SingleViewState extends State<_SingleView> {
   }
 
   void _scrollToVerse() {
-    final idx = widget.bible.verseIndex;
+    if (!mounted) return;
+    // Use navVerseIndex as the scroll target (set only by navigate()).
+    final idx = widget.bible.navVerseIndex;
     if (idx <= 0) {
-      // Verse 1: scroll to top
       if (widget.scrollController.hasClients) {
         widget.scrollController.animateTo(
           0,
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
@@ -437,7 +437,9 @@ class _SingleViewState extends State<_SingleView> {
       Scrollable.ensureVisible(
         key!.currentContext!,
         alignment: 0.0,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
         duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
       );
     }
   }

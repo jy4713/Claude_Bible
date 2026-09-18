@@ -1,5 +1,5 @@
 name: bible_app
-description: 성경앱 - 성경 / 찬송가 / 주석 뷰어
+description: 성경앱 - 성경 / 찬송가 / 주석 뷰어. Developed by Junyoung Choi.
 publish_to: 'none'
 version: 1.0.0+1
 
@@ -32,18 +32,8 @@ flutter:
   assets:
     - assets/bible/개역개정.bdb
     - assets/bible/개역한글.bdb
-    - assets/bible/KJV1769.bdb
-    - assets/bible/NIV.bdb
-    - assets/bible/WEB.bdb
-    - assets/bible/NET.bdb
-    - assets/bible/킹흠정역.bdb
-    - assets/bible/바른성경.bdb
     - assets/bible/새번역.bdb
-    - assets/bible/쉬운성경.bdb
-    - assets/bible/현대인의성경.bdb
-    - assets/bible/현대어성경.bdb
+    - assets/bible/NIV.bdb
     - assets/commentary/만나주석.cdb
     - assets/hymn/새찬송가.hdb
     - assets/hymn/새찬송가.cmp
-    - assets/dic/HebGrkKo.dct
-    - assets/dic/HebGrkEn.dct

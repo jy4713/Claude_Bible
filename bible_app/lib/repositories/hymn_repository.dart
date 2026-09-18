@@ -21,6 +21,7 @@ class HymnRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return [];
 
     final rows = await db.query('hymnal', orderBy: 'chapter');
     return rows.map((r) => HymnEntry.fromMap(r)).toList();
@@ -30,6 +31,7 @@ class HymnRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return null;
 
     final rows = await db.query('hymnal', where: 'chapter = ?', whereArgs: [chapter]);
     if (rows.isEmpty) return null;
@@ -41,6 +43,7 @@ class HymnRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return [];
 
     final rows = await db.query(
       'hymnal',

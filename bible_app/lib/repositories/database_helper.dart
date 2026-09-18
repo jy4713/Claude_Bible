@@ -25,16 +25,20 @@ class DatabaseHelper {
   }
 
   /// Copies an asset to the documents directory if not already there (native only).
-  /// Returns the absolute file path.
-  Future<String> ensureAsset(String assetPath) async {
+  /// Returns the absolute file path, or null if the asset does not exist in the APK.
+  Future<String?> ensureAsset(String assetPath) async {
     final dir = await _dbDir();
     final fileName = p.basename(assetPath);
     final destPath = p.join(dir, fileName);
 
     if (!File(destPath).existsSync()) {
-      final ByteData data = await rootBundle.load(assetPath);
-      final bytes = data.buffer.asUint8List();
-      await File(destPath).writeAsBytes(bytes, flush: true);
+      try {
+        final ByteData data = await rootBundle.load(assetPath);
+        final bytes = data.buffer.asUint8List();
+        await File(destPath).writeAsBytes(bytes, flush: true);
+      } catch (_) {
+        return null; // asset removed from APK (e.g. older saved preference)
+      }
     }
     return destPath;
   }
@@ -52,11 +56,13 @@ class DatabaseHelper {
   /// Opens a built-in asset DB.
   /// - Native: copies to docs dir, opens by file path.
   /// - Web: writes to OPFS virtual FS via sqflite_common_ffi_web, then opens.
-  Future<Database> openAsset(String assetPath) async {
+  /// Returns null if the asset is not present in this APK version.
+  Future<Database?> openAsset(String assetPath) async {
     if (kIsWeb) {
       return _openAssetWeb(assetPath);
     }
     final path = await ensureAsset(assetPath);
+    if (path == null) return null;
     return open(path);
   }
 

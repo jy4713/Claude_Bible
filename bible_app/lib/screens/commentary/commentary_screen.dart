@@ -45,13 +45,15 @@ class CommentaryScreenState extends State<CommentaryScreen> {
   /// Called when the Commentary tab is (re)selected: jump to the Bible's
   /// current position including verse.
   void syncToBible() {
+    if (!mounted) return;
     final bible = Provider.of<BibleProvider>(context, listen: false);
     final sameLocation = _book == bible.book &&
         _chapter == bible.chapter &&
         _verse == bible.verse &&
         _entries.isNotEmpty;
     if (sameLocation) {
-      _scrollToVerse(_verse);
+      // Use postFrameCallback to ensure the widget is fully rendered before scrolling.
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse(_verse));
       return;
     }
     setState(() {
@@ -60,21 +62,22 @@ class CommentaryScreenState extends State<CommentaryScreen> {
       _verse   = bible.verse;
     });
     _reload().then((_) {
-      WidgetsBinding.instance.addPostFrameCallback(
-          (_) => _scrollToVerse(_verse));
+      if (mounted) {
+        WidgetsBinding.instance.addPostFrameCallback(
+            (_) => _scrollToVerse(_verse));
+      }
     });
   }
 
   void _scrollToVerse(int verse) {
-    if (_entries.isEmpty) return;
+    if (!mounted || _entries.isEmpty) return;
     // Find the last entry whose verse number is <= target (entries are sorted asc).
-    // This gives the commentary section that covers the target verse.
     CommentaryEntry? best;
     for (final e in _entries) {
       if (e.verse <= verse) {
         best = e;
       } else {
-        break; // entries are ascending; first entry past target, stop
+        break;
       }
     }
     best ??= _entries.first;
@@ -84,7 +87,9 @@ class CommentaryScreenState extends State<CommentaryScreen> {
       Scrollable.ensureVisible(
         key!.currentContext!,
         alignment: 0.0,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
         duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
       );
     }
   }

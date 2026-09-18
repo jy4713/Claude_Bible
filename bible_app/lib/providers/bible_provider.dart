@@ -16,10 +16,14 @@ class BibleProvider with ChangeNotifier {
   /// Maximum number of translations that can be compared at once.
   static const int maxCompare = 4;
 
-  int _book       = 1;
-  int _chapter    = 1;
-  int _verse      = 1;
-  int _verseIndex = 0;
+  int _book          = 1;
+  int _chapter       = 1;
+  int _verse         = 1;
+  int _verseIndex    = 0;
+  // Separate navigation target (Kimi: scrollIndex) — only set by navigate().
+  // setScrollPosition() updates _verse/_verseIndex but NOT _navVerseIndex,
+  // so scroll-tracking never accidentally triggers a re-scroll.
+  int _navVerseIndex = 0;
 
   // Single-view translation (Bible tab)
   String _singleId = '개역개정';
@@ -34,10 +38,12 @@ class BibleProvider with ChangeNotifier {
   bool _loading = false;
   String? _error;
 
-  int get book       => _book;
-  int get chapter    => _chapter;
-  int get verse      => _verse;
-  int get verseIndex => _verseIndex;
+  int get book           => _book;
+  int get chapter        => _chapter;
+  int get verse          => _verse;
+  int get verseIndex     => _verseIndex;
+  /// Navigation target verse index — only updated by navigate(), not by scroll tracking.
+  int get navVerseIndex  => _navVerseIndex;
 
   /// The primary (single-view) translation ID.
   String get primaryId => _singleId;
@@ -64,8 +70,9 @@ class BibleProvider with ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     _book       = prefs.getInt(_kBook)    ?? 1;
     _chapter    = prefs.getInt(_kChapter) ?? 1;
-    _verse      = prefs.getInt(_kVerse)   ?? 1;
-    _verseIndex = _verse - 1;
+    _verse         = prefs.getInt(_kVerse)   ?? 1;
+    _verseIndex    = _verse - 1;
+    _navVerseIndex = _verseIndex;
     _compareMode = prefs.getBool(_kCompareMode) ?? false;
     _singleId    = prefs.getString(_kSingleId) ?? '개역개정';
     final saved  = prefs.getStringList(_kCompareIds);
@@ -86,10 +93,11 @@ class BibleProvider with ChangeNotifier {
     int chapter, {
     int verseIndex = 0,
   }) async {
-    _book       = book;
-    _chapter    = chapter;
-    _verseIndex = verseIndex;
-    _verse      = verseIndex + 1;
+    _book          = book;
+    _chapter       = chapter;
+    _verseIndex    = verseIndex;
+    _verse         = verseIndex + 1;
+    _navVerseIndex = verseIndex;   // mark explicit navigation target
     await _loadVerses(sources);
     final prefs = await SharedPreferences.getInstance();
     await prefs.setInt(_kBook,    book);

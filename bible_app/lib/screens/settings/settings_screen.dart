@@ -187,7 +187,19 @@ class _SettingsBody extends StatelessWidget {
           title: Text(t.addHymnFile),
           onTap: () => _importFile(context, SourceType.hymn),
         ),
-        const SizedBox(height: 24),
+        const Divider(height: 8),
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 20),
+          child: Center(
+            child: Text(
+              '최준영 제작',
+              style: TextStyle(
+                fontSize: 13,
+                color: Theme.of(context).colorScheme.outline,
+              ),
+            ),
+          ),
+        ),
       ],
     );
   }

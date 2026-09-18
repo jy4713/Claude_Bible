@@ -31,12 +31,13 @@ class CompareView extends StatefulWidget {
 class _CompareViewState extends State<CompareView> {
   final ScrollController _scrollController = ScrollController();
   final Map<int, GlobalKey> _verseKeys = {};
-  int _lastVerseIndex = 0;
+  // Track navVerseIndex (navigation target only) — not affected by scroll tracking.
+  int _lastNavVerseIndex = 0;
 
   @override
   void initState() {
     super.initState();
-    _lastVerseIndex = widget.bible.verseIndex;
+    _lastNavVerseIndex = widget.bible.navVerseIndex;
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
   }
 
@@ -48,10 +49,10 @@ class _CompareViewState extends State<CompareView> {
         widget.bible.chapter != old.bible.chapter;
     if (bookOrChapterChanged) {
       _verseKeys.clear();
-      _lastVerseIndex = widget.bible.verseIndex;
+      _lastNavVerseIndex = widget.bible.navVerseIndex;
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
-    } else if (widget.bible.verseIndex != _lastVerseIndex) {
-      _lastVerseIndex = widget.bible.verseIndex;
+    } else if (widget.bible.navVerseIndex != _lastNavVerseIndex) {
+      _lastNavVerseIndex = widget.bible.navVerseIndex;
       WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToVerse());
     }
   }
@@ -63,11 +64,12 @@ class _CompareViewState extends State<CompareView> {
   }
 
   void _scrollToVerse() {
-    final idx = widget.bible.verseIndex;
+    if (!mounted) return;
+    final idx = widget.bible.navVerseIndex;
     if (idx <= 0) {
       if (_scrollController.hasClients) {
         _scrollController.animateTo(0,
-            duration: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 300),
             curve: Curves.easeOut);
       }
       return;
@@ -82,7 +84,9 @@ class _CompareViewState extends State<CompareView> {
       Scrollable.ensureVisible(
         key!.currentContext!,
         alignment: 0.0,
+        alignmentPolicy: ScrollPositionAlignmentPolicy.explicit,
         duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
       );
     }
   }

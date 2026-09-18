@@ -24,6 +24,7 @@ class CommentaryRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return [];
 
     final rows = await db.query(
       'Bible',
@@ -46,6 +47,7 @@ class CommentaryRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return null;
 
     final rows = await db.query(
       'Bible',

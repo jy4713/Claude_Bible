@@ -10,6 +10,7 @@ class BibleRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return [];
 
     final rows = await db.query(
       'Bible',
@@ -25,6 +26,7 @@ class BibleRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return [];
 
     final where = book != null
         ? 'book = ? AND btext LIKE ?'
@@ -45,6 +47,7 @@ class BibleRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return null;
 
     final rows = await db.query(
       'Bible',
@@ -59,6 +62,7 @@ class BibleRepository {
     final db = source.isBuiltIn
         ? await DatabaseHelper.instance.openAsset(source.assetPath)
         : await DatabaseHelper.instance.openExternal(source.docPath);
+    if (db == null) return 1;
 
     final result = await db.rawQuery(
       'SELECT MAX(verse) as mv FROM Bible WHERE book=? AND chapter=?',
