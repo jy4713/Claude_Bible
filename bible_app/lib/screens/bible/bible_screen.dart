@@ -11,6 +11,7 @@ import '../../providers/bible_provider.dart';
 import '../../providers/note_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../repositories/bible_repository.dart';
+import '../../widgets/strong_verse_widget.dart';
 import 'bible_search_screen.dart';
 import '_book_selector_dialog.dart';
 import '_translation_selector.dart';
@@ -593,6 +594,7 @@ class _SingleViewState extends State<_SingleView> {
       return Center(child: Text(widget.emptyText));
     }
 
+    final dic = context.read<SettingsProvider>().preferredDic;
     return Stack(
       children: [
         ListView(
@@ -610,6 +612,7 @@ class _SingleViewState extends State<_SingleView> {
                 selectionMode: _selectionMode,
                 onTap: () => _onVerseTap(v),
                 onLongPress: () => _onVerseLongPress(v),
+                dic: dic,
               ),
           ],
         ),
@@ -664,6 +667,7 @@ class _VerseItem extends StatelessWidget {
   final bool selectionMode;
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
+  final SourceInfo? dic;
 
   const _VerseItem({
     super.key,
@@ -674,6 +678,7 @@ class _VerseItem extends StatelessWidget {
     this.selectionMode = false,
     this.onTap,
     this.onLongPress,
+    this.dic,
   });
 
   @override
@@ -683,18 +688,20 @@ class _VerseItem extends StatelessWidget {
         ? scheme.primaryContainer.withValues(alpha: 0.5)
         : Colors.transparent;
 
-    Widget textContent = Text(
-      verse.text,
-      style: TextStyle(
-        fontSize: fontSize,
-        height: 1.6,
-        decoration: hasNote ? TextDecoration.underline : null,
-        decorationStyle:
-            hasNote ? TextDecorationStyle.dashed : null,
-        decorationColor:
-            hasNote ? scheme.tertiary : null,
-        decorationThickness: hasNote ? 1.5 : null,
-      ),
+    final baseStyle = TextStyle(
+      fontSize: fontSize,
+      height: 1.6,
+      decoration: hasNote ? TextDecoration.underline : null,
+      decorationStyle: hasNote ? TextDecorationStyle.dashed : null,
+      decorationColor: hasNote ? scheme.tertiary : null,
+      decorationThickness: hasNote ? 1.5 : null,
+    );
+
+    Widget textContent = StrongVerseWidget(
+      verse: verse,
+      fontSize: fontSize,
+      baseStyle: baseStyle,
+      dic: dic,
     );
 
     return GestureDetector(

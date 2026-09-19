@@ -11,9 +11,9 @@ class SettingsProvider with ChangeNotifier {
   static const _kUiScale     = 'uiScale';
   static const _kThemeMode   = 'themeMode';
   static const _kLang        = 'appLang';
-  static const _kBibles      = 'bibles';
+  static const _kBibles       = 'bibles';
   static const _kCommentaries = 'commentaries';
-  static const _kHymns       = 'hymns';
+  static const _kHymns        = 'hymns';
 
   double _fontSize = 16.0;
   double _uiScale  = 1.0;
@@ -35,6 +35,9 @@ class SettingsProvider with ChangeNotifier {
   List<SourceInfo> get enabledBibles =>
       _bibles.where((s) => s.isEnabled).toList();
 
+  /// Default dictionary for Strong's word lookup (Korean).
+  SourceInfo get preferredDic => kBuiltInDictionaries.first;
+
   List<SourceInfo> get enabledCommentaries =>
       _commentaries.where((s) => s.isEnabled).toList();
 
@@ -50,20 +53,19 @@ class SettingsProvider with ChangeNotifier {
     _lang = AppLang.values[prefs.getInt(_kLang) ?? 0];
 
     final biblesJson = prefs.getString(_kBibles);
+    // All built-in bible IDs (regular + SDB)
+    final allBuiltIn = [...kBuiltInBibles, ...kBuiltInSdbBibles];
     if (biblesJson != null && biblesJson.isNotEmpty) {
       final saved = SourceInfo.decodeList(biblesJson);
-      final validBuiltInIds = {for (final b in kBuiltInBibles) b.id};
+      final validBuiltInIds = {for (final b in allBuiltIn) b.id};
       final savedIds = {for (final s in saved) s.id};
       _bibles = [
-        // Keep user-added bibles (isBuiltIn=false) always.
-        // Keep built-in bibles only if they still ship with this APK version.
         for (final s in saved)
           if (!s.isBuiltIn || validBuiltInIds.contains(s.id)) s,
-        // Add any new built-ins not yet in the saved list.
-        for (final b in kBuiltInBibles) if (!savedIds.contains(b.id)) b,
+        for (final b in allBuiltIn) if (!savedIds.contains(b.id)) b,
       ];
     } else {
-      _bibles = List<SourceInfo>.from(kBuiltInBibles);
+      _bibles = List<SourceInfo>.from(allBuiltIn);
     }
 
     final commJson = prefs.getString(_kCommentaries);

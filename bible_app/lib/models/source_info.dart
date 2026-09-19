@@ -87,3 +87,15 @@ final List<SourceInfo> kBuiltInCommentaries = [
 final List<SourceInfo> kBuiltInHymns = [
   SourceInfo(id: '새찬송가', name: '새찬송가', type: SourceType.hymn, assetPath: 'assets/hymn/새찬송가.hdb', isBuiltIn: true, docPath: ''),
 ];
+
+/// Strong's-annotated bibles (SDB) — used for word-level original-language lookup.
+final List<SourceInfo> kBuiltInSdbBibles = [
+  SourceInfo(id: '개역한글S', name: '개역한글(원어)', type: SourceType.bible, assetPath: 'assets/bible/개역한글S.sdb', isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: 'KJV_S',    name: 'KJV(원어)',    type: SourceType.bible, assetPath: 'assets/bible/KJV_S.sdb',    isBuiltIn: true, isEnabled: false),
+];
+
+/// Original-language dictionaries (Lexicon databases).
+final List<SourceInfo> kBuiltInDictionaries = [
+  SourceInfo(id: 'HebGrkKo', name: '원어사전(한)', type: SourceType.dictionary, assetPath: 'assets/dic/HebGrkKo.dct', isBuiltIn: true),
+  SourceInfo(id: 'HebGrkEn', name: '원어사전(영)', type: SourceType.dictionary, assetPath: 'assets/dic/HebGrkEn.dct', isBuiltIn: true),
+];

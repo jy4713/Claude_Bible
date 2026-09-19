@@ -44,6 +44,10 @@ flutter:
     - assets/bible/KJV1769.bdb
     - assets/bible/NET.bdb
     - assets/bible/WEB.bdb
+    - assets/bible/개역한글S.sdb
+    - assets/bible/KJV_S.sdb
+    - assets/dic/HebGrkKo.dct
+    - assets/dic/HebGrkEn.dct
     - assets/commentary/만나주석.cdb
     - assets/hymn/새찬송가.hdb
     - assets/hymn/새찬송가.cmp
