@@ -62,10 +62,22 @@ const Set<String> kEnglishBibleIds = {'KJV1769', 'NIV', 'NET', 'WEB'};
 // ── Built-in sources that ship with the app ────────────────────────────────
 
 final List<SourceInfo> kBuiltInBibles = [
-  SourceInfo(id: '개역개정', name: '개역개정',  type: SourceType.bible, assetPath: 'assets/bible/개역개정.bdb', isBuiltIn: true),
-  SourceInfo(id: '개역한글', name: '개역한글',  type: SourceType.bible, assetPath: 'assets/bible/개역한글.bdb', isBuiltIn: true),
-  SourceInfo(id: '새번역',   name: '새번역',    type: SourceType.bible, assetPath: 'assets/bible/새번역.bdb',   isBuiltIn: true),
-  SourceInfo(id: 'NIV',     name: 'NIV',      type: SourceType.bible, assetPath: 'assets/bible/NIV.bdb',     isBuiltIn: true),
+  // Default enabled (4)
+  SourceInfo(id: '개역개정',    name: '개역개정',    type: SourceType.bible, assetPath: 'assets/bible/개역개정.bdb',    isBuiltIn: true, isEnabled: true),
+  SourceInfo(id: '개역한글',    name: '개역한글',    type: SourceType.bible, assetPath: 'assets/bible/개역한글.bdb',    isBuiltIn: true, isEnabled: true),
+  SourceInfo(id: '새번역',      name: '새번역',      type: SourceType.bible, assetPath: 'assets/bible/새번역.bdb',      isBuiltIn: true, isEnabled: true),
+  SourceInfo(id: 'NIV',        name: 'NIV',        type: SourceType.bible, assetPath: 'assets/bible/NIV.bdb',        isBuiltIn: true, isEnabled: true),
+  // Additional (disabled by default)
+  SourceInfo(id: '바른성경',    name: '바른성경',    type: SourceType.bible, assetPath: 'assets/bible/바른성경.bdb',    isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: '쉬운말성경',  name: '쉬운말성경',  type: SourceType.bible, assetPath: 'assets/bible/쉬운말성경.bdb',  isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: '쉬운성경',    name: '쉬운성경',    type: SourceType.bible, assetPath: 'assets/bible/쉬운성경.bdb',    isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: '우리말성경',  name: '우리말성경',  type: SourceType.bible, assetPath: 'assets/bible/우리말성경.bdb',  isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: '킹흠정역',    name: '킹흠정역',    type: SourceType.bible, assetPath: 'assets/bible/킹흠정역.bdb',    isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: '현대어성경',  name: '현대어성경',  type: SourceType.bible, assetPath: 'assets/bible/현대어성경.bdb',  isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: '현대인의성경',name: '현대인의성경', type: SourceType.bible, assetPath: 'assets/bible/현대인의성경.bdb',isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: 'KJV1769',    name: 'KJV1769',    type: SourceType.bible, assetPath: 'assets/bible/KJV1769.bdb',    isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: 'NET',        name: 'NET',        type: SourceType.bible, assetPath: 'assets/bible/NET.bdb',        isBuiltIn: true, isEnabled: false),
+  SourceInfo(id: 'WEB',        name: 'WEB',        type: SourceType.bible, assetPath: 'assets/bible/WEB.bdb',        isBuiltIn: true, isEnabled: false),
 ];
 
 final List<SourceInfo> kBuiltInCommentaries = [
